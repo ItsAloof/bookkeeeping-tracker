@@ -368,6 +368,107 @@
   .rp-list.boxes li::before { content: "☐"; left: 0; font-size: 15px; line-height: 1.25; }
   .rp-flag { font-weight: 700; letter-spacing: .02em; }
   .rp-note { font-style: italic; }
+  /* ---------- Beta report editor ---------- */
+  .r2-wrap { display: grid; grid-template-columns: 440px 1fr; gap: 0; margin: -20px; min-height: 70vh; }
+  .r2-left { border-right: 1px solid var(--border); padding: 14px 16px 24px; overflow-y: auto; max-height: calc(92vh - 140px); }
+  .r2-right { background: var(--surface-3); padding: 16px; overflow: auto; max-height: calc(92vh - 140px); }
+  .r2-top { display: grid; gap: 10px; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .r2-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lbl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--muted); margin: 0 0 4px; }
+  .r2-savebar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; }
+  .r2-savebar .btn:disabled { opacity: .45; }
+  .r2-seg button { padding: 5px 9px; }
+  .r2-acc { border: 1px solid var(--border); border-radius: 9px; margin-bottom: 10px; background: var(--surface); }
+  .r2-acc > summary { list-style: none; cursor: pointer; padding: 9px 12px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+  .r2-acc > summary::-webkit-details-marker { display: none; }
+  .r2-acc > summary::before { content: "▸"; color: var(--muted); font-size: 11px; transition: transform .15s; }
+  .r2-acc[open] > summary::before { transform: rotate(90deg); }
+  .r2-acc-body { padding: 8px 12px 12px; border-top: 1px solid var(--border); }
+  .r2-field { margin-bottom: 10px; }
+  .r2-field textarea.input { font-size: 13px; min-height: 38px; }
+  .r2-chk { font-size: 13px; margin: 4px 0 8px; }
+  .r2-tag { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+  .r2-tag .src, .src { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+  .src.edited { background: var(--primary-weak); color: var(--primary); }
+  .src.client { background: var(--warn-weak); color: var(--warn); }
+  .src.uses { color: var(--muted); border: 1px solid var(--border); }
+  .reset { border: none; background: none; color: var(--primary); cursor: pointer; font-size: 11px; padding: 0; font-weight: 600; }
+  .r2-ins { border: 1px dashed var(--border-strong); background: none; border-radius: 6px; font-size: 11px; padding: 0 6px; cursor: pointer; color: var(--muted); }
+  .r2-tag + .r2-ins { margin-left: 0; }
+  .lbl > .r2-ins:only-of-type { margin-left: auto; }
+  .r2-ins:hover { border-color: var(--primary); color: var(--primary); }
+  .r2-dot { display: inline-flex; }
+  .r2-d { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: none; padding: 0; }
+  .r2-d.edited { background: var(--primary); }
+  .r2-d.client { background: var(--warn); cursor: pointer; }
+  .r2-cmp { font-size: 12px; color: var(--muted); background: var(--surface-3); border-radius: 6px; padding: 5px 8px; margin-top: 4px; white-space: pre-wrap; }
+  .r2-cmp b { color: var(--text); font-weight: 600; }
+  .r2-card { border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; margin-bottom: 10px; background: var(--surface-2); }
+  .r2-card.off .r2-card-body { opacity: .45; }
+  .r2-card-head { display: flex; align-items: center; gap: 6px; }
+  .r2-card-head .r2-chk { margin: 0; }
+  .r2-card-body { margin-top: 6px; }
+  .r2-drag { color: var(--muted); cursor: grab; }
+  .r2-card.drop-before { box-shadow: 0 -3px 0 var(--primary); }
+  .r2-card.drop-after { box-shadow: 0 3px 0 var(--primary); }
+  .r2-card.dragging { opacity: .4; }
+  .r2-kind.off textarea, .r2-kind.off .r2-kvars { opacity: .4; }
+  .r2-kvars { margin-top: 2px; }
+  .r2-kvars code { font-size: 10.5px; color: var(--muted); }
+  .r2-flash { animation: r2flash 1s ease; }
+  @keyframes r2flash { 0% { box-shadow: 0 0 0 4px var(--primary); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .r2-vg { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; margin: 8px 0 4px; }
+  .r2-var { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; padding: 4px 6px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+  .r2-var:hover { background: var(--primary-weak); border-color: var(--primary); }
+  .r2-var code { font-size: 12px; color: var(--primary); font-weight: 650; }
+  .r2-val { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .r2-help { grid-column: 1 / -1; font-size: 11px; color: var(--muted); }
+  .r2-pop { position: fixed; z-index: 150; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); width: 340px; max-height: 360px; overflow-y: auto; padding: 8px; display: none; }
+  .r2-pop.open { display: block; }
+  .r2-pop input { margin-bottom: 6px; }
+  .r2-bar { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .r2-excl { max-width: 740px; margin: 0 auto 10px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 8px; padding: 8px 12px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .r2-xchip { background: var(--surface-3); border-radius: 999px; padding: 2px 4px 2px 10px; display: inline-flex; align-items: center; gap: 4px; }
+  .r2-xchip button { border: none; background: none; cursor: pointer; color: var(--primary); font-weight: 700; }
+  .r2-paper { background: #fff; color: #111; max-width: 740px; margin: 0 auto; padding: 44px 52px; font: 13.5px/1.6 Georgia, "Times New Roman", serif; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  .r2-page + .r2-page { border-top: 1px dashed #aaa; margin-top: 34px; padding-top: 34px; }
+  .r2-lh { display: flex; justify-content: space-between; font: 12px/1.45 -apple-system, "Segoe UI", sans-serif; border-bottom: 1.5px solid #111; padding-bottom: 8px; margin-bottom: 20px; }
+  .r2-lh-left { justify-content: flex-start; }
+  .r2-lh-center { flex-direction: column; align-items: center; text-align: center; }
+  .r2-rb { text-align: right; }
+  .r2-sub { margin-top: 4px; }
+  .r2-logo { height: 46px; max-width: 170px; object-fit: contain; margin-right: 14px; }
+  .r2-lh-center .r2-logo { margin: 0 0 6px; }
+  .r2-rec { margin-bottom: 4px; }
+  .r2-re { margin: 14px 0 0; }
+  .r2-title { font-size: 17px; margin: 14px 0 12px; }
+  .r2-paper p { margin: 0 0 10px; }
+  .r2-sec + .r2-sec { margin-top: 14px; }
+  .r2-sec h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid #888; padding-bottom: 3px; margin: 18px 0 6px; }
+  .r2-sec h4 { font-size: 13.5px; margin: 12px 0 4px; }
+  .r2-lead { margin: 2px 0 4px !important; }
+  .r2-list { list-style: none; margin: 4px 0 6px; padding: 0; }
+  ol.r2-list { counter-reset: r2n; }
+  .r2-list li { position: relative; padding-left: 24px; margin: 4px 0; }
+  .r2-box li::before { content: "☐"; position: absolute; left: 0; font-size: 15px; line-height: 1.3; }
+  .r2-dot li::before { content: "•"; position: absolute; left: 7px; }
+  ol.r2-list li::before { counter-increment: r2n; content: counter(r2n) "."; position: absolute; left: 0; }
+  .r2-none li { padding-left: 0; }
+  .r2-click { cursor: pointer; border-radius: 3px; }
+  .r2-click:hover { outline: 2px dashed var(--primary); outline-offset: 2px; }
+  .r2-x { position: absolute; right: -30px; top: 1px; border: 1px solid #ccc; background: #fff; color: #666; border-radius: 5px; font-size: 11px; line-height: 1; padding: 3px 5px; cursor: pointer; opacity: 0; }
+  .r2-list li:hover .r2-x { opacity: 1; }
+  .r2-x:hover { color: var(--danger); border-color: var(--danger); }
+  mark.r2-bad { background: #fde8e8; color: #9b1c1c; border-bottom: 2px wavy #dc2626; padding: 0 2px; }
+  .r2-note { font-style: italic; }
+  .r2-closing { margin-top: 20px; }
+  .r2-diff { border-top: 1px solid var(--border); padding: 8px 0; font-size: 12px; }
+  .r2-diff-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .r2-diff-cols div { white-space: pre-wrap; background: var(--surface-2); border-radius: 6px; padding: 6px 8px; }
+  .tpl-list { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; }
+  .tpl-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .tpl-row:last-child { border-bottom: none; }
+  .beta-badge { font-size: 10px; font-weight: 800; letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; background: var(--warn-weak); color: var(--warn); border: 1px solid var(--warn); }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 200; box-shadow: var(--shadow-lg); display: flex; gap: 12px; align-items: center; }
   .toast button { background: none; border: none; color: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
 
@@ -389,6 +490,15 @@
     .rp-page:last-child { break-after: auto; }
     .rp-page + .rp-page { border-top: none; margin-top: 0; padding-top: 0; }
     .rp-sec { break-inside: avoid-page; }
+    .r2-wrap { display: block; margin: 0; }
+    .r2-right { padding: 0; max-height: none; overflow: visible; background: none !important; }
+    .r2-bar, .r2-excl, .r2-x, .r2-pop, mark.r2-bad { display: none !important; }
+    .r2-paper { box-shadow: none; padding: 0; max-width: none; }
+    .r2-click:hover { outline: none; }
+    .r2-page { break-after: page; }
+    .r2-page:last-child { break-after: auto; }
+    .r2-page + .r2-page { border-top: none; margin-top: 0; padding-top: 0; }
+    .r2-sec { break-inside: avoid-page; }
   }
 </style>
 </head>
@@ -396,6 +506,7 @@
 
 <header class="topbar">
   <h1>Reconciliation Tracker</h1>
+  <span class="beta-badge hidden" id="betaBadge" title="Beta features are on (File → Settings)">BETA</span>
   <div class="year-nav" title="Each year is tracked separately">
     <button data-action="year-prev" aria-label="Previous year">‹</button>
     <div class="yr" id="yearLabel">—</div>
@@ -993,7 +1104,7 @@ async function applyRemote({ conflict }) {
     lastSaveError = null; pendingSave = false;
     ui.clientId = clientBefore && one('SELECT id FROM clients WHERE id = ?', [clientBefore]) ? clientBefore : null;
     render();
-    if (ui.modal && ['checks', 'report', 'report2'].includes(ui.modal.kind)) rerenderModal();
+    if (ui.modal && ['checks', 'report', 'report2', 'r2manage'].includes(ui.modal.kind)) rerenderModal();
     toast(conflict ? 'Another window saved at the same time — loaded its version. Undo brings yours back.' : 'Updated with changes from another window or device.', 'Undo', undo, 7000);
   } catch (e) { console.warn('Live sync failed:', e); }
   finally { syncBusy = false; }
@@ -1700,6 +1811,7 @@ const badgeHTML = s => `<span class="badges">${s.overdue ? `<span class="badge-d
 function render() {
   if (!db) return;
   $('yearLabel').textContent = ui.year;
+  $('betaBadge').classList.toggle('hidden', !betaOn());
   $('thisYearBtn').classList.toggle('hidden', ui.year === TODAY_YEAR);
   const mode = progressMode();
   $('modeYtd').classList.toggle('on', mode === 'ytd');
@@ -2194,6 +2306,8 @@ function rerenderModal() {
   if (!ui.modal || !modalOpen()) return;
   if (ui.modal.kind === 'checks') checkRegisterModal(ui.modal.accId, ui.modal.seriesId, true);
   if (ui.modal.kind === 'report' && $('rpPaper')) renderReportPaper();
+  if (ui.modal.kind === 'report2') r2Refresh();
+  if (ui.modal.kind === 'r2manage') r2ManageModal(ui.modal.back);
 }
 
 function typeOptions(selected) {
@@ -2237,6 +2351,15 @@ function clientModal(clientId = null) {
           <div class="field"><label>Contact name for letters</label><input class="input" id="fContact" value="${esc(clientReportPrefs(c).contact || '')}" placeholder="e.g. Tony — used for {contact}"></div>
           <div class="field"><label>Default report format</label><select class="input" id="fTpl"><option value="">Letter to client</option>${Object.entries(REPORT_TEMPLATES).map(([k, t]) => `<option value="${k}" ${clientReportPrefs(c).template === k ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
         </div>
+        <div class="row3">
+          <div class="field"><label>First name <code>{contactFirst}</code></label><input class="input" id="fContactFirst" value="${esc(clientReportPrefs(c).contactFirst || '')}" placeholder="from contact name"></div>
+          <div class="field"><label>Salutation <code>{salutation}</code></label><input class="input" id="fSalutation" value="${esc(clientReportPrefs(c).salutation || '')}" placeholder="Dear {first name},"></div>
+          <div class="field"><label>Phone <code>{contactPhone}</code></label><input class="input" id="fContactPhone" value="${esc(clientReportPrefs(c).contactPhone || '')}"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Email <code>{contactEmail}</code></label><input class="input" id="fContactEmail" value="${esc(clientReportPrefs(c).contactEmail || '')}" placeholder="used by Copy for email"></div>
+          <div class="field"><label>Mailing address <code>{contactAddress}</code></label><textarea class="input" id="fContactAddress" rows="2">${esc(clientReportPrefs(c).contactAddress || '')}</textarea></div>
+        </div>
         <label class="check"><input type="checkbox" id="fArchived" ${c.archived ? 'checked' : ''}> Archived (hide from the sidebar and totals)</label>
         ${c.uuid ? `<div class="hint">Client ID: <code>${esc(c.uuid)}</code></div>` : ''}`}`,
     footer: `<button class="btn" data-action="modal-close">Cancel</button><button class="btn primary" data-action="client-save" data-id="${clientId || ''}">${isNew ? 'Create client' : 'Save'}</button>`
@@ -2252,7 +2375,9 @@ function saveClientFromModal(clientId) {
   if (clientId) {
     const archived = $('fArchived').checked ? 1 : 0;
     const c = one('SELECT * FROM clients WHERE id = ?', [clientId]);
-    const cp = { ...clientReportPrefs(c), contact: $('fContact').value.trim(), template: $('fTpl').value };
+    const cp = { ...clientReportPrefs(c), contact: $('fContact').value.trim(), template: $('fTpl').value,
+      contactFirst: $('fContactFirst').value.trim(), salutation: $('fSalutation').value.trim(), contactPhone: $('fContactPhone').value.trim(),
+      contactEmail: $('fContactEmail').value.trim(), contactAddress: $('fContactAddress').value.replace(/\s+$/, '') };
     closeModal();
     mutate(`Edit client "${name}"`, () => {
       run('UPDATE clients SET name = ?, notes = ?, archived = ?, start_ym = ? WHERE id = ?', [name, notes, archived, startYm, clientId]);
@@ -2883,6 +3008,19 @@ function settingsModal() {
         <div class="field"><label>Firm / business name</label><input class="input" id="setFirm" value="${esc(reportProfile().firm)}" placeholder="Used for {firm} and the letterhead"></div>
       </div>
       <div class="field"><label>Letterhead contact line</label><input class="input" id="setContact" value="${esc(reportProfile().contact)}" placeholder="e.g. (518) 555-0100 · you@example.com"></div>
+      <div class="row3">
+        <div class="field"><label>Phone <code>{firmPhone}</code></label><input class="input" id="setPhone" value="${esc(reportProfile().firmPhone || '')}"></div>
+        <div class="field"><label>Email <code>{firmEmail}</code></label><input class="input" id="setEmail" value="${esc(reportProfile().firmEmail || '')}"></div>
+        <div class="field"><label>Reply window <code>{respondBy}</code></label><input type="number" min="1" max="90" class="input" id="setRespond" value="${esc(reportProfile().respondDays || 10)}"><div class="hint">days after the letter date</div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Address <code>{firmAddress}</code></label><textarea class="input" id="setAddress" rows="3">${esc(reportProfile().firmAddress || '')}</textarea></div>
+        <div class="field"><label>Signature <code>{signature}</code></label><textarea class="input" id="setSignature" rows="3" placeholder="Sincerely,&#10;Your name&#10;Firm">${esc(reportProfile().signature || '')}</textarea></div>
+      </div>
+      <div class="section-title">Beta</div>
+      <label class="check"><input type="checkbox" id="setBeta" ${betaOn() ? 'checked' : ''}> <b>Try beta features</b> — the new report editor (header, line templates, snippets, Copy for email, templates)</label>
+      <div class="hint" style="margin-bottom:10px">The current report stays available: the beta editor has a “Use legacy report” button, and turning this off brings it back everywhere. Neither changes the other’s saved wording.</div>
+      ${betaOn() ? '<button class="btn sm" data-action="r2-manage">Manage report templates…</button>' : ''}
       <div class="hint">Database schema version ${esc(getSetting('schema_version'))}. ${storageMode === 'server' ? 'Saving to the tracker server (it keeps rolling backups in its data/backups folder).' : storageMode === 'file' ? `Saving to <b>${esc(fileHandle.name)}</b>.` : 'Saving to browser storage only.'}</div>`,
     footer: `<button class="btn" data-action="modal-close">Cancel</button><button class="btn primary" data-action="settings-save">Save</button>`
   });
@@ -3210,6 +3348,802 @@ async function copyReportText() {
     try { document.execCommand('copy'); } finally { ta.remove(); }
   }
   toast('Report text copied — paste it into an email.');
+}
+
+/* =====================================================================
+   BETA: Report editor v2
+   Everything a letter says lives in one flat map of keys, e.g.
+     'title', 'intro', 'hdr.left', 'snip.pastDue', 'head:docs', 'lead:docs',
+     'item:docs:missing', 'sec:docs:on', 'kind:docs:missing:on', 'order', 'opt:layout' …
+   Built-in defaults  ←  template values  ←  this client's overrides (per template).
+   Stored in settings: r2_templates (all templates) and r2_client:<uuid> (overrides).
+   The legacy report keeps its own settings and is never modified by this editor.
+   ===================================================================== */
+const betaOn = () => getSetting('beta', '0') === '1';
+
+const R2_KINDS = {
+  missing:    { label: 'Missing statement / GL',          vars: ['account', 'bank', 'last4', 'type', 'document', 'months', 'monthsShort', 'period', 'count', 's', 'pastDue'] },
+  yearend:    { label: 'January statement for year-end',  vars: ['account', 'last4', 'nextYear', 'period'] },
+  payreports: { label: 'Missing payroll reports',         vars: ['payDates', 'count', 's', 'service', 'pastDue'] },
+  forms:      { label: 'Missing tax form',                vars: ['form', 'period', 'quarter', 'year', 'pastDue'] },
+  received:   { label: 'Received, not entered yet',       vars: ['account', 'last4', 'document', 'months', 'monthsShort', 'status'] },
+  payrecv:    { label: 'Payroll received, not entered',   vars: ['payDates', 'count', 's'] },
+  ready:      { label: 'Ready to reconcile',              vars: ['account', 'last4', 'months', 'monthsShort', 'count'] },
+  paytie:     { label: 'Payroll entered, not tied out',   vars: ['payDates', 'count', 's'] },
+  paytodo:    { label: 'Payroll filing to tie out',       vars: ['task'] },
+  problems:   { label: 'Problem',                         vars: ['account', 'last4', 'problem'] },
+  gaps:       { label: 'Check gap',                       vars: ['account', 'last4', 'series', 'checkNumbers', 'count', 's', 'it', 'wasWere'] },
+  stale:      { label: 'Stale check',                     vars: ['account', 'last4', 'series', 'checkNumbers', 'count', 's', 'it', 'hasHave', 'staleMonths'] }
+};
+const R2_SECTIONS = {
+  docs:     { label: 'Documents still needed', kinds: ['missing', 'yearend', 'payreports', 'forms'] },
+  received: { label: 'Received, being processed', kinds: ['received', 'payrecv'] },
+  ready:    { label: 'Ready to reconcile / tie out', kinds: ['ready', 'paytie', 'paytodo'] },
+  problems: { label: 'Problems to fix', kinds: ['problems'] },
+  checks:   { label: 'Questions about checks', kinds: ['gaps', 'stale'] }
+};
+const R2_TEXT_NAMES = {
+  title: 'Title', intro: 'Opening', closing: 'Closing', 'hdr.left': 'Letterhead main block', 'hdr.right': 'Letterhead side block',
+  'hdr.recipient': 'Recipient block', 'hdr.re': 'Re: line', 'snip.pastDue': 'Snippet {pastDue}', 'snip.last4': 'Snippet {last4}'
+};
+const r2FieldName = k => R2_TEXT_NAMES[k]
+  || (k.startsWith('head:') ? `“${R2_SECTIONS[k.slice(5)]?.label}” heading`
+  : k.startsWith('lead:') ? `“${R2_SECTIONS[k.slice(5)]?.label}” sentence`
+  : k.startsWith('item:') ? `Line: ${R2_KINDS[k.split(':')[2]]?.label}` : k);
+const R2_DATE_FMTS = {
+  long: d => d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+  short: d => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+  numeric: d => `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}/${d.getFullYear()}`,
+  iso: d => isoDate(d)
+};
+
+/** Built-in defaults for the three starting templates. */
+function r2Builtin(base) {
+  const internal = base === 'internal', partner = base === 'partner';
+  const v = {
+    'opt:layout': 'section', 'opt:lhOn': internal || partner ? 0 : 1, 'opt:recOn': internal || partner ? 0 : 1, 'opt:reOn': 0,
+    'opt:align': 'split', 'opt:dateFmt': 'long',
+    'hdr.left': '{firm}\n{firmAddress}\n{firmPhone} · {firmEmail}', 'hdr.right': '{date}',
+    'hdr.recipient': '{contact}\n{client}\n{contactAddress}', 'hdr.re': 'Re: Bookkeeping documents for {month} {year}',
+    'snip.pastDue': internal ? ' — PAST DUE' : partner ? ' — past due' : ' (past due)', 'snip.last4': ' (••{digits})',
+    order: ['docs', 'received', 'ready', 'problems', 'checks']
+  };
+  if (internal) Object.assign(v, { title: 'Reconciliation status — {client}', intro: '{client} · through {month} {year} · prepared {date}', closing: '' });
+  else if (partner) Object.assign(v, { title: 'Items to request from {client}', intro: 'Please reach out to {client}{contactParen} for the items below. Check each one off as it comes in.', closing: '' });
+  else Object.assign(v, {
+    title: 'Documents needed to complete your books',
+    intro: '{salutation}\n\nTo finish your bookkeeping through {throughDate}, we still need the items listed below. You can email them or drop them off, whichever is easier.',
+    closing: 'Thank you for your help. Please reach out if you have any questions.\n\n{signature}'
+  });
+  const heads = internal
+    ? { docs: 'Documents still needed', received: 'Received — waiting to be entered', ready: 'Ready to reconcile / tie out', problems: 'Problems to fix', checks: 'Check questions' }
+    : { docs: 'Documents we still need', received: 'Received — being processed', ready: 'Ready for review', problems: 'Items that need attention', checks: 'Questions about checks' };
+  for (const id of Object.keys(R2_SECTIONS)) {
+    v[`sec:${id}:on`] = internal || id === 'docs' || id === 'checks' ? 1 : 0;
+    v[`sec:${id}:showHead`] = 1;
+    v[`sec:${id}:bullet`] = partner ? 'box' : 'dot';
+    v[`head:${id}`] = heads[id];
+    v[`lead:${id}`] = '';
+    for (const k of R2_SECTIONS[id].kinds) v[`kind:${id}:${k}:on`] = 1;
+  }
+  const t = internal ? {
+    missing: '{account}{last4} — {document}: {monthsShort}{pastDue}', yearend: '{account}{last4} — January {nextYear} statement (covers {period})',
+    payreports: 'Payroll reports: {payDates}{pastDue}', forms: '{form} for {period}{pastDue}',
+    received: '{account}{last4} — {monthsShort} {document} ({status})', payrecv: 'Payroll received, not entered: {payDates}',
+    ready: '{account}{last4} — {monthsShort}', paytie: 'Payroll entered, not tied to bank: {payDates}', paytodo: '{task}',
+    problems: '{account}{last4} — {problem}', gaps: '{account}{last4} ({series}) — unaccounted: {checkNumbers}',
+    stale: '{account}{last4} ({series}) — outstanding {staleMonths}+ months: {checkNumbers}'
+  } : {
+    missing: '{account}{last4} — {document} for {months}{pastDue}', yearend: '{account}{last4} — January {nextYear} statement (covers {period})',
+    payreports: 'Payroll reports for the pay date{s} {payDates}{pastDue}', forms: '{form} for {period}{pastDue}',
+    received: '{account}{last4} — {document} for {months} (being processed)', payrecv: 'Payroll for {payDates} (being processed)',
+    ready: '{account}{last4} — {months}', paytie: 'Payroll for {payDates}', paytodo: '{task}',
+    problems: '{account}{last4}: {problem}',
+    gaps: '{account}{last4}: we have no record of check{s} {checkNumbers}. Please let us know if {it} {wasWere} voided or written — if written, please send the details.',
+    stale: '{account}{last4}: check{s} {checkNumbers} {hasHave} not cleared the bank in over {staleMonths} months. Should {it} be voided?'
+  };
+  for (const id of Object.keys(R2_SECTIONS)) for (const k of R2_SECTIONS[id].kinds) v[`item:${id}:${k}`] = t[k];
+  return v;
+}
+
+/* ---------- storage ---------- */
+function r2Store() { return jsonSetting('r2_templates', null); }
+/** First use: create templates from the built-ins, carrying over the legacy report's saved wording. */
+function r2EnsureStore() {
+  if (r2Store()) return;
+  const list = [['client', 'Letter to client'], ['partner', 'Missing-items list'], ['internal', 'Internal checklist']].map(([base, name]) => {
+    const values = {};
+    const old = jsonSetting(`report_tpl:${base}`, null);
+    if (old) {
+      ['title', 'intro', 'closing'].forEach(k => { if (old[k] != null) values[k] = old[k]; });
+      const map = { missing: 'docs', received: 'received', ready: 'ready', problems: 'problems', checks: 'checks' };
+      Object.entries(old.headings || {}).forEach(([k, h]) => { if (h && map[k]) values[`head:${map[k]}`] = h; });
+      Object.entries(old.sections || {}).forEach(([k, on]) => { if (map[k]) values[`sec:${map[k]}:on`] = on ? 1 : 0; });
+      if (old.opts) {
+        if (old.opts.boxes) Object.values(map).forEach(id => { values[`sec:${id}:bullet`] = 'box'; });
+        if (old.opts.last4 === 0) values['snip.last4'] = '';
+        if (old.opts.flagOverdue === 0) values['snip.pastDue'] = '';
+        if (old.opts.payroll === 0) ['payreports', 'forms'].forEach(k => { values[`kind:docs:${k}:on`] = 0; });
+        if (old.opts.yearEnd === 0) values['kind:docs:yearend:on'] = 0;
+      }
+    }
+    return { id: base, name, base, values };
+  });
+  const store = { default: 'client', list };
+  mutate('Set up report templates', () => {
+    setSetting('r2_templates', JSON.stringify(store));
+    getClients(true).forEach(c => {             // carry over each client's saved legacy wording
+      const cp = clientReportPrefs(c);
+      const rec = { template: cp.template || '', overrides: {} };
+      Object.entries(cp.texts || {}).forEach(([key, t]) => {
+        const o = {};
+        ['title', 'intro', 'closing'].forEach(k => { if (t[k] != null) o[k] = t[k]; });
+        if (Object.keys(o).length) rec.overrides[key] = o;
+      });
+      if (rec.template || Object.keys(rec.overrides).length) setSetting(`r2_client:${c.uuid}`, JSON.stringify(rec));
+    });
+  });
+}
+const r2Tpl = id => (r2Store().list.find(t => t.id === id) || r2Store().list[0]);
+const r2ClientRec = c => jsonSetting(`r2_client:${c.uuid}`, { template: '', overrides: {} });
+const r2TemplateValues = tpl => ({ ...r2Builtin(tpl.base), ...tpl.values });
+const r2ClientOverrides = (c, tplId) => (c ? (r2ClientRec(c).overrides || {})[tplId] || {} : {});
+function r2Effective(tplId, c) { return { ...r2TemplateValues(r2Tpl(tplId)), ...r2ClientOverrides(c, tplId) }; }
+function r2SaveStore(store, label) { mutate(label, () => setSetting('r2_templates', JSON.stringify(store))); }
+
+/* ---------- letter variables ---------- */
+function r2LetterVars(c, year, through, values, itemCount) {
+  const prof = reportProfile(), cp = clientReportPrefs(c);
+  const contact = cp.contact || '';
+  const first = cp.contactFirst || contact.split(/\s+/)[0] || '';
+  const fmt = R2_DATE_FMTS[values['opt:dateFmt']] || R2_DATE_FMTS.long;
+  const now = new Date();
+  const respond = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (parseInt(prof.respondDays, 10) || 10));
+  const signature = prof.signature || ['Sincerely,', prof.preparer, prof.firm].filter(Boolean).join('\n');
+  return {
+    client: c.name, contact: contact || c.name, contactFirst: first || c.name, contactParen: contact ? ` (${contact})` : '',
+    salutation: cp.salutation || `Dear ${first || contact || c.name},`,
+    contactEmail: cp.contactEmail || '', contactPhone: cp.contactPhone || '', contactAddress: cp.contactAddress || '',
+    date: fmt(now), month: MONTHS_LONG[Math.max(0, through)], year: String(year),
+    throughDate: fmt(new Date(year, through + 1, 0)), respondBy: fmt(respond), itemCount: String(itemCount),
+    preparer: prof.preparer || '', firm: prof.firm || '', firmPhone: prof.firmPhone || '', firmEmail: prof.firmEmail || '',
+    firmAddress: prof.firmAddress || '', firmContact: prof.contact || '', signature
+  };
+}
+const R2_VAR_HELP = {
+  client: 'Client name', contact: 'Contact name (Edit client)', contactFirst: 'Contact first name', salutation: 'e.g. “Dear Tony,” (Edit client)',
+  contactEmail: 'Contact email', contactPhone: 'Contact phone', contactAddress: 'Mailing address (multi-line)', contactParen: '“ (Tony)” or nothing',
+  date: 'Today, in the header date format', month: 'The report’s “through” month', year: 'Report year', throughDate: 'Last day of the “through” month',
+  respondBy: 'Today + your reply window (Settings)', itemCount: 'Items in this letter', preparer: 'Your name (Settings)', firm: 'Firm name',
+  firmPhone: 'Firm phone', firmEmail: 'Firm email', firmAddress: 'Firm address', firmContact: 'Letterhead contact line', signature: 'Signature (multi-line)',
+  account: 'Account name', bank: 'Bank / lender', last4: 'Uses the {last4} snippet', digits: 'Last 4 digits (inside the {last4} snippet)', type: 'Account type',
+  document: 'bank statement / statement / general ledger (plural when needed)', months: 'Long months, ranges joined', monthsShort: 'Sep, Oct',
+  period: 'Statement period or filing period', count: 'How many in this line', s: '“s” when more than one', it: '“it” or “they”', hasHave: '“has” or “have”',
+  pastDue: 'Only on late items (snippet)', nextYear: 'Year after the report year', payDates: 'Pay dates', service: 'Payroll service',
+  form: 'Form 941 / NYS-45 / W-3', quarter: 'Q1–Q4', status: 'Received / Needs entry…', task: 'What still needs tying out', problem: 'What’s wrong',
+  series: 'Check series label', checkNumbers: '#1017, #1023', staleMonths: 'Stale threshold (Settings)', wasWere: '“was” or “were”'
+};
+
+/* ---------- items from the tracker's data ---------- */
+function r2Items(cid, year, through) {
+  const d = collectReport(cid, year, through);
+  const out = [];
+  const add = (kind, id, vars) => out.push({ kind, id: `${kind}|${id}`, vars, late: !!vars.late });
+  const many = (n, word) => (n > 1 ? `${word}s` : word);
+  const accVars = acc => ({ account: acc.name, bank: acc.institution || '', digits: acc.last4 || '', type: typeLabel(acc.type) });
+  const docWord = (doc, grp, n) => (doc === 'gl' ? many(n, 'general ledger') : many(n, grp === 'bank' ? 'bank statement' : 'statement'));
+  const spanPeriod = (acc, ms) => `${periodRange(acc, year, ms[0]).split(' – ')[0]} – ${periodRange(acc, year, ms[ms.length - 1]).split(' – ')[1]}`;
+  d.accounts.forEach(r => {
+    ['stmt', 'gl'].forEach(doc => {
+      const items = r.missing.filter(x => x.doc === doc);
+      if (items.length) {
+        const ms = items.map(x => x.m);
+        add('missing', `${r.acc.id}:${doc}`, { ...accVars(r.acc), document: docWord(doc, r.grp, ms.length), months: fmtMonthsLong(ms, year),
+          monthsShort: ms.map(m => MONTHS[m]).join(', '), period: spanPeriod(r.acc, ms), count: ms.length, late: items.some(x => x.overdue) });
+      }
+      const rec = r.received.filter(x => x.doc === doc);
+      if (rec.length) {
+        const ms = rec.map(x => x.m);
+        add('received', `${r.acc.id}:${doc}`, { ...accVars(r.acc), document: docWord(doc, r.grp, ms.length), months: fmtMonthsLong(ms, year),
+          monthsShort: ms.map(m => MONTHS[m]).join(', '), status: [...new Set(rec.map(x => statusLabel(x.status).toLowerCase()))].join(', '), count: ms.length });
+      }
+    });
+    if (r.ready.length) add('ready', r.acc.id, { ...accVars(r.acc), months: fmtMonthsLong(r.ready, year), monthsShort: r.ready.map(m => MONTHS[m]).join(', '), count: r.ready.length });
+    r.problems.forEach((p, i) => add('problems', `${r.acc.id}:${i}`, { ...accVars(r.acc), problem: p }));
+    r.gaps.forEach(g => add('gaps', `${r.acc.id}:${g.series}`, { ...accVars(r.acc), series: g.series, checkNumbers: hashNums(g.nums), count: g.nums.length }));
+    r.stale.forEach(g => add('stale', `${r.acc.id}:${g.series}`, { ...accVars(r.acc), series: g.series, checkNumbers: hashNums(g.nums), count: g.nums.length, staleMonths: staleMonths() }));
+  });
+  d.yearEnd.forEach(x => add('yearend', x.acc.id, { ...accVars(x.acc), nextYear: year + 1, period: `December ${closeDay(x.acc, year, 11) + 1}–31, ${year}` }));
+  if (d.payroll) {
+    const P = d.payroll, dates = list => list.map(x => fmtShort(parseISO(x.d || x))).join(', ');
+    if (P.reports.length) add('payreports', 'reports', { payDates: dates(P.reports), count: P.reports.length, service: P.service || '', late: P.reports.some(x => x.overdue) });
+    P.forms.forEach(f => {
+      const m = /^(Form [\w-]+) for (Q\d) (\d{4})$/.exec(f.label) || /^(Form [\w-]+) for (\d{4})$/.exec(f.label);
+      add('forms', f.label, m && m[3] ? { form: m[1], quarter: m[2], year: m[3], period: `${m[2]} ${m[3]}`, late: f.overdue }
+        : { form: m ? m[1] : f.label, quarter: '', year: m ? m[2] : String(year), period: m ? m[2] : String(year), late: f.overdue });
+    });
+    if (P.notEntered.length) add('payrecv', 'recv', { payDates: dates(P.notEntered), count: P.notEntered.length });
+    if (P.notTied.length) add('paytie', 'tie', { payDates: dates(P.notTied), count: P.notTied.length });
+    P.todo.forEach((t, i) => add('paytodo', i, { task: t }));
+    P.problems.forEach((p, i) => add('problems', `payroll:${i}`, { account: 'Payroll', digits: '', problem: p }));
+  }
+  out.forEach(it => {
+    const n = it.vars.count || 1;
+    Object.assign(it.vars, { s: n > 1 ? 's' : '', it: n > 1 ? 'they' : 'it', hasHave: n > 1 ? 'have' : 'has', wasWere: n > 1 ? 'were' : 'was' });
+    it.group = it.vars.account || (['payreports', 'forms', 'payrecv', 'paytie', 'paytodo'].includes(it.kind) ? 'Payroll' : 'Other');
+  });
+  return out;
+}
+
+/* ---------- filling text ---------- */
+/** mode 'html' (preview/print) or 'text' (email). Unknown {names} are highlighted in html and counted. */
+function r2Fill(text, vars, values, mode = 'html', bad = { n: 0 }) {
+  const enc = mode === 'html' ? esc : x => String(x);
+  return enc(String(text ?? '')).replace(/\{(\w+)\}/g, (m, k) => {
+    if (k === 'pastDue') return vars.late ? r2Fill(values['snip.pastDue'], vars, values, mode, bad) : '';
+    if (k === 'last4') return vars.digits ? r2Fill(values['snip.last4'], vars, values, mode, bad) : '';
+    if (k in vars) { const v = String(vars[k] ?? ''); return mode === 'html' ? esc(v).replace(/\n/g, '<br>') : v; }
+    bad.n++;
+    return mode === 'html' ? `<mark class="r2-bad" title="Unknown variable">${m}</mark>` : m;
+  });
+}
+
+/** Sections in order, with the items that will actually print. */
+function r2Plan(values, items, excluded) {
+  return (values.order || Object.keys(R2_SECTIONS)).filter(id => R2_SECTIONS[id] && +values[`sec:${id}:on`]).map(id => ({
+    id, items: items.filter(it => R2_SECTIONS[id].kinds.includes(it.kind) && +values[`kind:${id}:${it.kind}:on`] && !excluded[it.id])
+      .sort((a, b) => R2_SECTIONS[id].kinds.indexOf(a.kind) - R2_SECTIONS[id].kinds.indexOf(b.kind))
+  }));
+}
+
+function r2PageHTML(page, values, { editable = true } = {}) {
+  const { vars, plan, client } = page;
+  const F = (t, extra = {}) => r2Fill(t, { ...vars, ...extra }, values);
+  const J = k => (editable ? ` data-r2jump="${k}"` : '');
+  const block = k => {
+    const lines = F(values[k]).split('\n');
+    if (k === 'hdr.left' && lines.length) lines[0] = `<b>${lines[0]}</b>`;
+    return `<div class="r2-click"${J(k)}>${lines.join('<br>')}</div>`;
+  };
+  const paras = k => String(values[k] || '').split(/\n{2,}/).filter(p => p.trim()).map(p => `<p class="r2-click"${J(k)}>${F(p).replace(/\n/g, '<br>')}</p>`).join('');
+  let h = '';
+  if (+values['opt:lhOn']) {
+    const logo = getSetting('report_logo', '') ? `<img src="${getSetting('report_logo', '')}" alt="" class="r2-logo">` : '';
+    h += values['opt:align'] === 'split'
+      ? `<div class="r2-lh r2-lh-split">${logo}${block('hdr.left')}<span style="flex:1"></span><div class="r2-rb">${block('hdr.right')}</div></div>`
+      : `<div class="r2-lh r2-lh-${values['opt:align']}">${logo}<div>${block('hdr.left')}<div class="r2-sub">${block('hdr.right')}</div></div></div>`;
+  }
+  if (+values['opt:recOn']) h += `<div class="r2-rec">${block('hdr.recipient')}</div>`;
+  if (+values['opt:reOn']) h += `<p class="r2-click r2-re"${J('hdr.re')}><b>${F(values['hdr.re'])}</b></p>`;
+  if (String(values.title || '').trim()) h += `<h1 class="r2-click r2-title"${J('title')}>${F(values.title)}</h1>`;
+  h += paras('intro');
+  const li = (sec, it) => `<li class="r2-click"${J(`item:${sec}:${it.kind}`)}>${F(values[`item:${sec}:${it.kind}`], it.vars)}${editable ? `<button class="r2-x" data-r2x="${esc(page.cid)}|${esc(it.id)}" title="Leave this out of this letter (e.g. it just came in)">✕</button>` : ''}</li>`;
+  const list = (bullet, lis) => (lis.length ? `<${bullet === 'num' ? 'ol' : 'ul'} class="r2-list r2-${bullet}">${lis.join('')}</${bullet === 'num' ? 'ol' : 'ul'}>` : '');
+  const nonEmpty = plan.filter(s => s.items.length);
+  if (values['opt:layout'] === 'section') {
+    nonEmpty.forEach(s => {
+      const head = +values[`sec:${s.id}:showHead`] && String(values[`head:${s.id}`] || '').trim();
+      h += `<section class="r2-sec">${head ? `<h3 class="r2-click"${J(`head:${s.id}`)}>${F(values[`head:${s.id}`])}</h3>` : ''}${String(values[`lead:${s.id}`] || '').trim() ? `<p class="r2-click r2-lead"${J(`lead:${s.id}`)}>${F(values[`lead:${s.id}`])}</p>` : ''}${list(values[`sec:${s.id}:bullet`], s.items.map(it => li(s.id, it)))}</section>`;
+    });
+  } else {
+    const groups = new Map();
+    nonEmpty.forEach(s => s.items.forEach(it => {
+      const g = values['opt:layout'] === 'account' ? it.group : '_';
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(li(s.id, it));
+    }));
+    const bullet = nonEmpty.length ? values[`sec:${nonEmpty[0].id}:bullet`] : 'dot';
+    for (const [g, lis] of groups) h += `<section class="r2-sec">${g !== '_' ? `<h4>${esc(g)}</h4>` : ''}${list(bullet, lis)}</section>`;
+  }
+  if (!nonEmpty.length) h += `<p class="r2-note">Nothing outstanding for ${esc(client.name)} in what this template includes.</p>`;
+  h += `<div class="r2-closing">${paras('closing')}</div>`;
+  return `<div class="r2-page">${h}</div>`;
+}
+
+function r2EmailText(page, values, { box = '☐ ', withHeader = false, subjectKey = 'title' } = {}) {
+  const bad = { n: 0 };
+  const T = (t, extra = {}) => r2Fill(t, { ...page.vars, ...extra }, values, 'text', bad);
+  const out = [];
+  const para = k => String(values[k] || '').split(/\n{2,}/).forEach(p => { if (p.trim()) out.push(T(p).trim(), ''); });
+  if (withHeader) {
+    if (+values['opt:lhOn']) out.push(T(values['hdr.left']), T(values['hdr.right']), '');
+    if (+values['opt:recOn']) out.push(T(values['hdr.recipient']), '');
+  }
+  if (+values['opt:reOn'] && subjectKey !== 'hdr.re') out.push(T(values['hdr.re']), '');
+  para('intro');
+  const mark = (b, i) => (b === 'box' ? box : b === 'dot' ? '• ' : b === 'num' ? `${i + 1}. ` : '');
+  const nonEmpty = page.plan.filter(s => s.items.length);
+  if (values['opt:layout'] === 'section') {
+    nonEmpty.forEach(s => {
+      if (+values[`sec:${s.id}:showHead`] && String(values[`head:${s.id}`] || '').trim()) out.push(T(values[`head:${s.id}`]).toUpperCase());
+      if (String(values[`lead:${s.id}`] || '').trim()) out.push(T(values[`lead:${s.id}`]));
+      s.items.forEach((it, i) => out.push(mark(values[`sec:${s.id}:bullet`], i) + T(values[`item:${s.id}:${it.kind}`], it.vars)));
+      out.push('');
+    });
+  } else {
+    const groups = new Map();
+    nonEmpty.forEach(s => s.items.forEach(it => { const g = values['opt:layout'] === 'account' ? it.group : '_'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(T(values[`item:${s.id}:${it.kind}`], it.vars)); }));
+    const b = nonEmpty.length ? values[`sec:${nonEmpty[0].id}:bullet`] : 'dot';
+    for (const [g, ls] of groups) { if (g !== '_') out.push(g); ls.forEach((l, i) => out.push(mark(b, i) + l)); out.push(''); }
+  }
+  para('closing');
+  const subject = T(values[subjectKey]).replace(/^Re:\s*/i, '');
+  return { subject, body: out.join('\n').replace(/\n{3,}/g, '\n\n').trim(), bad: bad.n };
+}
+
+/* ---------- the editor ---------- */
+function report2Modal(clientIds) {
+  if (!clientIds.length) return toast('No clients to report on.');
+  r2EnsureStore();
+  const single = clientIds.length === 1 ? one('SELECT * FROM clients WHERE id = ?', [clientIds[0]]) : null;
+  const store = r2Store();
+  const tplId = (single && r2ClientRec(single).template && store.list.some(t => t.id === r2ClientRec(single).template)) ? r2ClientRec(single).template : store.default;
+  const through = ui.year === TODAY_YEAR ? Math.max(0, TODAY_MONTH - 1) : Math.max(0, reportCutoff(ui.year));   // last month that has fully ended
+  ui.modal = { kind: 'report2', clientIds, single: single && single.id, tplId, through, edited: new Set(), excluded: {}, skipEmpty: true };
+  r2LoadValues();
+  r2Render();
+}
+function r2LoadValues() {
+  const st = ui.modal;
+  const c = st.single ? one('SELECT * FROM clients WHERE id = ?', [st.single]) : null;
+  st.values = r2Effective(st.tplId, c);
+  st.edited.clear();
+}
+const r2Client = () => (ui.modal.single ? one('SELECT * FROM clients WHERE id = ?', [ui.modal.single]) : null);
+function r2Pages() {
+  const st = ui.modal;
+  return st.clientIds.map(cid => {
+    const c = one('SELECT * FROM clients WHERE id = ?', [cid]);
+    // In an all-clients report each page also applies that client's own customizations of this template
+    const values = st.single ? st.values : { ...st.values, ...r2ClientOverrides(c, st.tplId) };
+    const items = r2Items(cid, ui.year, st.through);
+    const excluded = Object.fromEntries(Object.keys(st.excluded).filter(k => k.startsWith(cid + '|')).map(k => [k.slice(String(cid).length + 1), 1]));
+    const plan = r2Plan(values, items, excluded);
+    const count = plan.reduce((n, s) => n + s.items.length, 0);
+    return { cid, client: c, values, plan, count, vars: r2LetterVars(c, ui.year, st.through, values, count) };
+  });
+}
+
+function r2Render() {
+  const st = ui.modal, v = st.values, store = r2Store(), c = r2Client();
+  const tpl = r2Tpl(st.tplId);
+  const isDefault = c ? (r2ClientRec(c).template || store.default) === st.tplId : store.default === st.tplId;
+  const ta = (k, rows = 3) => `<textarea class="input r2t" data-r2="${k}" rows="${rows}">${esc(v[k] ?? '')}</textarea>`;
+  const inp = k => `<input class="input r2t" data-r2="${k}" value="${esc(v[k] ?? '')}">`;
+  const field = (k, label, body) => `<div class="field r2-field"><label class="lbl">${label} <span class="r2-tag" data-r2tag="${k}"></span><button class="r2-ins" data-r2ins="${k}" title="Insert a variable">{ }</button></label>${body}</div>`;
+  const chk = (k, label) => `<label class="check r2-chk"><input type="checkbox" data-r2="${k}" ${+v[k] ? 'checked' : ''}> ${label} <span class="r2-dot" data-r2tag="${k}"></span></label>`;
+  const segBtns = (k, opts) => `<div class="seg r2-seg">${opts.map(([val, l]) => `<button data-r2set="${k}" data-v="${val}" class="${v[k] === val ? 'on' : ''}">${l}</button>`).join('')}</div> <span class="r2-dot" data-r2tag="${k}"></span>`;
+  const secCards = (v.order || Object.keys(R2_SECTIONS)).filter(id => R2_SECTIONS[id]).map(id => `
+    <div class="r2-card ${+v[`sec:${id}:on`] ? '' : 'off'}" data-r2card="${id}">
+      <div class="r2-card-head"><span class="r2-drag" title="Drag to reorder">⠿</span>
+        <label class="r2-chk" title="Include this section"><input type="checkbox" data-r2="sec:${id}:on" ${+v[`sec:${id}:on`] ? 'checked' : ''}></label>
+        <b>${esc(R2_SECTIONS[id].label)}</b><span class="r2-dot" data-r2tag="sec:${id}:on"></span><span class="spacer"></span>
+        <button class="btn sm ghost" data-r2move="${id}:-1" title="Move up">↑</button><button class="btn sm ghost" data-r2move="${id}:1" title="Move down">↓</button></div>
+      <div class="r2-card-body">
+        <label class="check r2-chk"><input type="checkbox" data-r2="sec:${id}:showHead" ${+v[`sec:${id}:showHead`] ? 'checked' : ''}> Show heading &amp; line <span class="r2-dot" data-r2tag="sec:${id}:showHead"></span></label>
+        ${field(`head:${id}`, 'Heading', inp(`head:${id}`))}
+        <div class="r2-2col">${field(`lead:${id}`, 'Sentence before the list', inp(`lead:${id}`))}
+          <div class="field"><label class="lbl">Bullets <span class="r2-dot" data-r2tag="sec:${id}:bullet"></span></label><select class="input" data-r2="sec:${id}:bullet">
+            ${[['box', '☐ Checkbox'], ['dot', '• Dot'], ['num', '1. Numbered'], ['none', 'None']].map(([val, l]) => `<option value="${val}" ${v[`sec:${id}:bullet`] === val ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+        ${R2_SECTIONS[id].kinds.map(k => `<div class="r2-kind ${+v[`kind:${id}:${k}:on`] ? '' : 'off'}">
+          <div class="field r2-field"><label class="lbl"><input type="checkbox" data-r2="kind:${id}:${k}:on" ${+v[`kind:${id}:${k}:on`] ? 'checked' : ''} title="Include these items"> ${esc(R2_KINDS[k].label)} <span class="r2-dot" data-r2tag="kind:${id}:${k}:on"></span><span class="r2-tag" data-r2tag="item:${id}:${k}"></span><button class="r2-ins" data-r2ins="item:${id}:${k}" title="Insert a variable">{ }</button></label>
+          ${ta(`item:${id}:${k}`, 2)}<div class="hint r2-kvars">${R2_KINDS[k].vars.map(x => `<code>{${x}}</code>`).join(' ')}</div></div></div>`).join('')}
+      </div></div>`).join('');
+  openModal({
+    title: c ? `Report · ${c.name}` : `Report · ${st.clientIds.length} clients`,
+    size: 'xwide',
+    keepScroll: !!$('r2Left'),
+    body: `<div class="r2-wrap">
+      <div class="r2-left rp-controls" id="r2Left">
+        <div class="r2-top">
+          <div class="r2-2col">
+            <div><label class="lbl">Template</label><select class="input" id="r2Tpl">${store.list.map(t => `<option value="${esc(t.id)}" ${t.id === st.tplId ? 'selected' : ''}>${esc(t.name)}${t.id === store.default ? ' (default)' : ''}</option>`).join('')}<option value="__manage">Manage templates…</option></select>
+              ${isDefault ? '' : `<button class="link" data-action="r2-make-default" style="font-size:12px;margin-top:4px">☆ Use this template by default${c ? ` for ${esc(c.name)}` : ''}</button>`}</div>
+            <div><label class="lbl">Through</label><select class="input" id="r2Through">${MONTHS_LONG.map((m, i) => `<option value="${i}" ${i === st.through ? 'selected' : ''}>${m} ${ui.year}</option>`).join('')}</select></div>
+          </div>
+          <div><label class="lbl">Layout</label>${segBtns('opt:layout', [['section', 'By section'], ['account', 'By account'], ['list', 'One list']])}</div>
+          <div class="r2-savebar"><span class="muted" id="r2SaveHint"></span>
+            ${c ? `<button class="btn sm" data-action="r2-save" data-to="client" id="r2SaveClient">Save for this client</button>` : ''}
+            <button class="btn sm" data-action="r2-save" data-to="template" id="r2SaveTpl">Save to template</button></div>
+          ${st.single ? '' : `<label class="check r2-chk"><input type="checkbox" id="r2SkipEmpty" ${st.skipEmpty ? 'checked' : ''}> Skip clients with nothing outstanding</label>`}
+        </div>
+        <details class="r2-acc" open><summary>🏷️ Header</summary><div class="r2-acc-body">
+          ${chk('opt:lhOn', '<b>Letterhead</b>')}
+          <div class="r2-2col"><div><label class="lbl">Arrangement</label>${segBtns('opt:align', [['split', 'Split'], ['left', 'Stacked'], ['center', 'Centered']])}</div>
+            <div><label class="lbl">Date format <span class="r2-dot" data-r2tag="opt:dateFmt"></span></label><select class="input" data-r2="opt:dateFmt">${Object.entries(R2_DATE_FMTS).map(([k, f]) => `<option value="${k}" ${v['opt:dateFmt'] === k ? 'selected' : ''}>${esc(f(new Date()))}</option>`).join('')}</select></div></div>
+          <div class="r2-2col">${field('hdr.left', 'Main block', ta('hdr.left'))}${field('hdr.right', 'Side block', ta('hdr.right'))}</div>
+          <div class="hint">First line of the main block prints bold. Logo: ${getSetting('report_logo', '') ? '<b>set</b> · <button class="link" data-action="r2-logo-remove">remove</button>' : 'none'} · <label class="link" style="cursor:pointer">${getSetting('report_logo', '') ? 'change' : 'add'} logo<input type="file" accept="image/*" id="r2Logo" hidden></label> (applies to every letter)</div>
+          ${chk('opt:recOn', '<b>Recipient block</b>')}${field('hdr.recipient', 'Address lines', ta('hdr.recipient'))}
+          ${chk('opt:reOn', '<b>Re: line</b>')}${field('hdr.re', 'Re: line', inp('hdr.re'))}
+        </div></details>
+        <details class="r2-acc" open><summary>✉️ Letter</summary><div class="r2-acc-body">
+          ${field('title', 'Title', inp('title'))}${field('intro', 'Opening', ta('intro', 5))}${field('closing', 'Closing', ta('closing', 4))}
+        </div></details>
+        <details class="r2-acc" open><summary>📋 Sections <span class="muted" style="font-weight:400;font-size:12px">drag ⠿ or ↑ ↓ to reorder</span></summary><div class="r2-acc-body" id="r2Cards">${secCards}</div></details>
+        <details class="r2-acc"><summary>🧩 Snippets</summary><div class="r2-acc-body">
+          ${field('snip.pastDue', '<code>{pastDue}</code> — added only to late items', inp('snip.pastDue'))}
+          ${field('snip.last4', '<code>{last4}</code> — how account numbers appear (use <code>{digits}</code>)', inp('snip.last4'))}
+          <div class="hint">Leave a snippet empty to hide it everywhere.</div></div></details>
+        <details class="r2-acc"><summary>🔤 Variables <span class="muted" style="font-weight:400;font-size:12px">click to insert</span></summary><div class="r2-acc-body" id="r2Vars"></div></details>
+      </div>
+      <div class="r2-right">
+        <div class="r2-bar">Preview · click a line to edit it · hover a line and press ✕ to leave it out of this letter · type <b>{</b> in any box for variables</div>
+        <div class="r2-excl hidden" id="r2Excl"></div>
+        <div class="r2-paper rp-paper" id="rpPaper"></div>
+      </div>
+    </div>
+    <div class="r2-pop" id="r2Pop"><input class="input" id="r2PopSearch" placeholder="Search variables…"><div id="r2PopList"></div></div>`,
+    footer: `<span class="pill" style="background:var(--warn-weak);color:var(--warn)">Beta</span><button class="btn ghost" data-action="r2-legacy">Use legacy report</button><span class="spacer"></span>
+      <button class="btn" data-action="modal-close">Close</button><button class="btn" data-action="r2-email">📋 Copy for email</button><button class="btn primary" data-action="print">🖨️ Print</button>`,
+    onMount: r2Mount
+  });
+  r2Paper(); r2Tags(); r2VarsList();
+}
+
+function r2Paper() {
+  const st = ui.modal; if (!st || st.kind !== 'report2' || !$('rpPaper')) return;
+  let pages = r2Pages();
+  if (!st.single && st.skipEmpty) pages = pages.filter(p => p.count);
+  $('rpPaper').innerHTML = pages.length ? pages.map(p => r2PageHTML(p, p.values)).join('') : '<div class="r2-page"><p class="r2-note">Nothing outstanding for any client.</p></div>';
+  const ex = Object.keys(st.excluded);
+  const all = ex.length ? st.clientIds.flatMap(cid => r2Items(cid, ui.year, st.through).map(it => [`${cid}|${it.id}`, it, cid])) : [];
+  $('r2Excl').classList.toggle('hidden', !ex.length);
+  $('r2Excl').innerHTML = ex.length ? `<b>Left out of this letter:</b> ${ex.map(k => {
+    const f = all.find(x => x[0] === k);
+    const label = f ? `${f[1].vars.account || f[1].vars.form || 'Payroll'} — ${R2_KINDS[f[1].kind].label.toLowerCase()}` : k;
+    return `<span class="r2-xchip">${esc(label)} <button data-r2restore="${esc(k)}" title="Put it back">↺</button></span>`;
+  }).join('')} <button class="link" data-r2restore="*">put all back</button>` : '';
+}
+function r2Tags() {
+  const st = ui.modal; if (!st || st.kind !== 'report2') return;
+  const c = r2Client();
+  const over = c ? r2ClientOverrides(c, st.tplId) : {};
+  const tplVals = r2TemplateValues(r2Tpl(st.tplId));
+  document.querySelectorAll('#modalRoot .r2-cmp').forEach(x => x.remove());
+  document.querySelectorAll('#modalRoot [data-r2tag]').forEach(el => {
+    const k = el.dataset.r2tag, dot = el.classList.contains('r2-dot');
+    if (st.edited.has(k)) {
+      el.innerHTML = dot ? '<span class="r2-d edited" title="Changed — not saved yet"></span>' : `<span class="src edited">Edited · not saved</span><button class="reset" data-r2undo="${k}">undo edit</button>`;
+    } else if (k in over) {
+      el.innerHTML = dot ? `<button class="r2-d client" data-r2usetpl="${k}" title="Customized for this client — click to use the template’s setting"></button>`
+        : `<span class="src client">Customized for this client</span><button class="reset" data-r2usetpl="${k}">use template wording</button>`;
+      if (!dot) {
+        const input = document.querySelector(`#modalRoot [data-r2="${CSS.escape(k)}"]`);
+        if (input) input.insertAdjacentHTML('afterend', `<div class="r2-cmp"><b>Template says:</b> ${esc(String(tplVals[k] ?? '').trim() || '(empty)')}</div>`);
+      }
+    } else el.innerHTML = dot ? '' : (c ? '<span class="src uses">Uses template</span>' : '');
+  });
+  const n = st.edited.size;
+  if ($('r2SaveHint')) $('r2SaveHint').textContent = n ? `${n} unsaved change${n > 1 ? 's' : ''}:` : (c && Object.keys(over).length ? `${Object.keys(over).length} customized for this client` : 'No unsaved changes');
+  ['r2SaveClient', 'r2SaveTpl'].forEach(id => { if ($(id)) $(id).disabled = !n; });
+}
+function r2VarsList(filter = '', target = 'r2Vars') {
+  const st = ui.modal, pages = r2Pages(), page = pages[0];
+  const items = page ? r2Items(page.cid, ui.year, st.through) : [];
+  const sample = k => { const it = items.find(i => k in i.vars); return it ? String(it.vars[k]) : ''; };
+  const groups = [['Letter', Object.keys(page ? page.vars : {})], ['Items', [...new Set(Object.values(R2_KINDS).flatMap(x => x.vars)), 'digits']]];
+  const f = filter.toLowerCase();
+  let h = '';
+  groups.forEach(([g, keys]) => {
+    const ks = keys.filter(k => !f || k.toLowerCase().includes(f) || (R2_VAR_HELP[k] || '').toLowerCase().includes(f));
+    if (!ks.length) return;
+    h += `<div class="r2-vg">${g}</div>` + ks.map(k => {
+      const val = g === 'Letter' ? page.vars[k] : sample(k);
+      return `<div class="r2-var" data-r2var="${k}"><code>{${k}}</code><span class="r2-val">${esc(String(val ?? '').split('\n')[0]) || '<span class="muted">—</span>'}</span><span class="r2-help">${esc(R2_VAR_HELP[k] || '')}</span></div>`;
+    }).join('');
+  });
+  $(target).innerHTML = h || '<div class="muted" style="padding:6px">No match</div>';
+}
+
+function r2SetValue(k, val) {
+  const st = ui.modal;
+  st.values[k] = val;
+  const c = r2Client();
+  const saved = r2Effective(st.tplId, c)[k];
+  if (JSON.stringify(saved) === JSON.stringify(val)) st.edited.delete(k); else st.edited.add(k);
+}
+function r2Mount(modalRoot) {
+  // Listen on the dialog element (replaced on every render), not on #modalRoot, so handlers never pile up
+  const root = modalRoot.querySelector('.modal-overlay');
+  const st = ui.modal;
+  let lastField = null, popTarget = null;
+  const pop = root.querySelector('#r2Pop');
+  const partial = el => { const m = /\{(\w*)$/.exec(el.value.slice(0, el.selectionStart ?? el.value.length)); return m ? { start: (el.selectionStart ?? el.value.length) - m[0].length, text: m[1] } : null; };
+  const openPop = (el, anchor, search, filter = '') => {
+    popTarget = el;
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = Math.min(r.left, innerWidth - 360) + 'px';
+    pop.style.top = Math.min(r.bottom + 6, innerHeight - 380) + 'px';
+    root.querySelector('#r2PopSearch').value = filter;
+    root.querySelector('#r2PopSearch').classList.toggle('hidden', !search);
+    r2VarsList(filter, 'r2PopList');
+    pop.classList.add('open');
+    if (search) root.querySelector('#r2PopSearch').focus();
+  };
+  const insert = (el, name) => {
+    if (!el) return;
+    const p = partial(el), s = el.selectionStart ?? el.value.length, e = el.selectionEnd ?? s;
+    const before = p ? el.value.slice(0, p.start) : el.value.slice(0, s);
+    el.value = before + `{${name}}` + el.value.slice(e);
+    el.focus();
+    const pos = before.length + name.length + 2;
+    el.setSelectionRange(pos, pos);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    pop.classList.remove('open');
+  };
+  root.addEventListener('focusin', e => { if (e.target.matches('.r2t')) lastField = e.target; });
+  root.addEventListener('input', e => {
+    const el = e.target;
+    if (el.id === 'r2PopSearch') return r2VarsList(el.value, 'r2PopList');
+    if (!el.matches('.r2t')) return;
+    r2SetValue(el.dataset.r2, el.value);
+    r2Paper(); r2Tags();
+    const p = partial(el);
+    if (p) openPop(el, el, false, p.text); else pop.classList.remove('open');
+  });
+  root.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && pop.classList.contains('open')) { e.stopPropagation(); pop.classList.remove('open'); return; }
+    if ((e.key === 'Enter' || e.key === 'Tab') && pop.classList.contains('open') && e.target === popTarget) {
+      const first = root.querySelector('#r2PopList [data-r2var]');
+      if (first) { e.preventDefault(); e.stopPropagation(); insert(popTarget, first.dataset.r2var); }
+    }
+  }, true);
+  root.addEventListener('change', e => {
+    const el = e.target;
+    if (el.id === 'r2Tpl') {
+      if (el.value === '__manage') { el.value = st.tplId; if (st.edited.size && !confirm('Leave the report and drop your unsaved changes?')) return; return r2ManageModal(); }
+      if (st.edited.size && !confirm('Switch templates and drop your unsaved changes?')) { el.value = st.tplId; return; }
+      st.tplId = el.value; r2LoadValues(); return r2Render();
+    }
+    if (el.id === 'r2Through') { st.through = +el.value; r2Paper(); return r2VarsList(); }
+    if (el.id === 'r2SkipEmpty') { st.skipEmpty = el.checked; return r2Paper(); }
+    if (el.id === 'r2Logo') {
+      const f = el.files[0]; if (!f) return;
+      if (f.size > 400 * 1024) return toast('Please use a logo under 400 KB.');
+      const r = new FileReader();
+      r.onload = () => { mutate('Set letterhead logo', () => setSetting('report_logo', r.result)); };
+      r.readAsDataURL(f); return;
+    }
+    if (!el.dataset.r2 || el.matches('.r2t')) return;
+    const k = el.dataset.r2;
+    r2SetValue(k, el.type === 'checkbox' ? (el.checked ? 1 : 0) : el.value);
+    const card = el.closest('.r2-card'); if (card && k.endsWith(':on') && k.startsWith('sec:')) card.classList.toggle('off', !el.checked);
+    const kind = el.closest('.r2-kind'); if (kind && k.startsWith('kind:')) kind.classList.toggle('off', !el.checked);
+    r2Paper(); r2Tags(); r2VarsList();
+  });
+  root.addEventListener('click', e => {
+    const t = e.target;
+    const v = t.closest('[data-r2var]');
+    if (v) { insert(v.closest('#r2Pop') ? popTarget : lastField, v.dataset.r2var); return; }
+    const ins = t.closest('[data-r2ins]');
+    if (ins) { e.preventDefault(); const el = root.querySelector(`[data-r2="${CSS.escape(ins.dataset.r2ins)}"]`); lastField = el; openPop(el, ins, true); return; }
+    if (!t.closest('#r2Pop')) pop.classList.remove('open');
+    const x = t.closest('[data-r2x]');
+    if (x) { e.stopPropagation(); st.excluded[x.dataset.r2x] = 1; r2Paper(); toast('Left out of this letter only — it stays on the list in the tracker.'); return; }
+    const rs = t.closest('[data-r2restore]');
+    if (rs) { if (rs.dataset.r2restore === '*') st.excluded = {}; else delete st.excluded[rs.dataset.r2restore]; return r2Paper(); }
+    const set = t.closest('[data-r2set]');
+    if (set) { r2SetValue(set.dataset.r2set, set.dataset.v); set.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === set)); r2Paper(); r2Tags(); return; }
+    const un = t.closest('[data-r2undo]');
+    if (un) {
+      const k = un.dataset.r2undo; st.values[k] = r2Effective(st.tplId, r2Client())[k]; st.edited.delete(k);
+      const el = root.querySelector(`[data-r2="${CSS.escape(k)}"]`); if (el) el.value = st.values[k] ?? '';
+      r2Paper(); r2Tags(); return;
+    }
+    const ut = t.closest('[data-r2usetpl]');
+    if (ut) { e.preventDefault(); return r2UseTemplate(ut.dataset.r2usetpl); }
+    const mv = t.closest('[data-r2move]');
+    if (mv) { const [id, d] = mv.dataset.r2move.split(':'); return r2Move(id, +d); }
+    const j = t.closest('[data-r2jump]');
+    if (j) {
+      const k = j.dataset.r2jump;
+      const el = root.querySelector(`[data-r2="${CSS.escape(k)}"]`);
+      if (el) {
+        const d = el.closest('details'); if (d) d.open = true;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.remove('r2-flash'); void el.offsetWidth; el.classList.add('r2-flash');
+        setTimeout(() => el.focus(), 250);
+      }
+    }
+  });
+  // drag to reorder sections
+  let dragId = null;
+  root.addEventListener('mousedown', e => { const h = e.target.closest('.r2-drag'); if (h) h.closest('.r2-card').draggable = true; });
+  root.addEventListener('dragstart', e => { const c = e.target.closest && e.target.closest('.r2-card'); if (!c) return; dragId = c.dataset.r2card; c.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); });
+  root.addEventListener('dragover', e => {
+    const c = e.target.closest && e.target.closest('.r2-card'); if (!c || !dragId) return;
+    e.preventDefault();
+    root.querySelectorAll('.r2-card').forEach(x => x.classList.remove('drop-before', 'drop-after'));
+    if (c.dataset.r2card !== dragId) { const r = c.getBoundingClientRect(); c.classList.add(e.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after'); }
+  });
+  root.addEventListener('drop', e => {
+    const c = e.target.closest && e.target.closest('.r2-card'); if (!c || !dragId) return;
+    e.preventDefault();
+    const order = [...st.values.order].filter(x => x !== dragId);
+    let i = order.indexOf(c.dataset.r2card) + (c.classList.contains('drop-after') ? 1 : 0);
+    order.splice(i, 0, dragId);
+    dragId = null; r2SetValue('order', order); r2Render();
+  });
+  root.addEventListener('dragend', () => { dragId = null; root.querySelectorAll('.r2-card').forEach(x => { x.draggable = false; x.classList.remove('dragging', 'drop-before', 'drop-after'); }); });
+}
+function r2Move(id, d) {
+  const st = ui.modal, order = [...st.values.order], i = order.indexOf(id), j = i + d;
+  if (j < 0 || j >= order.length) return;
+  order.splice(j, 0, order.splice(i, 1)[0]);
+  r2SetValue('order', order); r2Render();
+}
+/** Persist edited keys. to = 'client' | 'template' */
+function r2Save(to) {
+  const st = ui.modal, c = r2Client(), keys = [...st.edited];
+  if (!keys.length) return;
+  const store = r2Store(), tpl = store.list.find(t => t.id === st.tplId);
+  mutate(to === 'client' ? `Report wording for ${c.name}` : `Template “${tpl.name}”`, () => {
+    if (to === 'template') {
+      keys.forEach(k => { tpl.values[k] = st.values[k]; });
+      setSetting('r2_templates', JSON.stringify(store));
+      if (c) {   // what was just saved to the template now applies to this client too
+        const rec = r2ClientRec(c), o = (rec.overrides = rec.overrides || {})[st.tplId] || {};
+        keys.forEach(k => delete o[k]); rec.overrides[st.tplId] = o;
+        setSetting(`r2_client:${c.uuid}`, JSON.stringify(rec));
+      }
+    } else {
+      const rec = r2ClientRec(c), o = (rec.overrides = rec.overrides || {})[st.tplId] || {};
+      const tv = r2TemplateValues(tpl);
+      keys.forEach(k => { if (JSON.stringify(tv[k]) === JSON.stringify(st.values[k])) delete o[k]; else o[k] = st.values[k]; });
+      rec.overrides[st.tplId] = o;
+      setSetting(`r2_client:${c.uuid}`, JSON.stringify(rec));
+    }
+  });
+  st.edited.clear();
+  r2Tags();
+  toast(to === 'client' ? `Saved for ${c.name} only.` : `Saved to “${tpl.name}” for every client using it.`, 'Undo', undo, 6000);
+}
+function r2UseTemplate(k) {
+  const st = ui.modal, c = r2Client(); if (!c) return;
+  const rec = r2ClientRec(c), o = (rec.overrides || {})[st.tplId] || {};
+  delete o[k]; rec.overrides[st.tplId] = o;
+  mutate(`${r2FieldName(k)} back to template for ${c.name}`, () => setSetting(`r2_client:${c.uuid}`, JSON.stringify(rec)));
+  st.values[k] = r2Effective(st.tplId, c)[k]; st.edited.delete(k);
+  r2Render();
+  toast(`${r2FieldName(k)} now follows the template.`, 'Undo', undo, 6000);
+}
+function r2MakeDefault() {
+  const st = ui.modal, c = r2Client(), store = r2Store();
+  if (c) { const rec = r2ClientRec(c); rec.template = st.tplId; mutate(`${c.name} uses “${r2Tpl(st.tplId).name}”`, () => setSetting(`r2_client:${c.uuid}`, JSON.stringify(rec))); }
+  else { store.default = st.tplId; r2SaveStore(store, 'Default report template'); }
+  r2Render();
+}
+/** Called after undo / live sync while the editor is open: keep unsaved edits, refresh everything else. */
+function r2Refresh() {
+  const st = ui.modal, keep = {};
+  st.edited.forEach(k => { keep[k] = st.values[k]; });
+  if (!r2Store() || !r2Store().list.some(t => t.id === st.tplId)) { r2EnsureStore(); st.tplId = r2Store().default; }
+  const ed = [...st.edited];
+  r2LoadValues();
+  ed.forEach(k => r2SetValue(k, keep[k]));
+  r2Render();
+}
+
+/* ---------- managing templates ---------- */
+function r2ManageModal(prevClientIds = ui.modal && ui.modal.clientIds) {
+  r2EnsureStore();
+  const store = r2Store();
+  const back = prevClientIds;
+  ui.modal = { kind: 'r2manage', back };
+  const users = id => getClients(true).filter(c => (r2ClientRec(c).template || store.default) === id).length;
+  openModal({
+    title: 'Report templates',
+    size: 'wide',
+    body: `<div class="hint" style="margin-top:0;margin-bottom:12px">A template holds the wording, sections, snippets and layout. Each client uses one template and can customize any field for itself in the report editor.</div>
+      <div class="tpl-list">${store.list.map(t => {
+        const diff = Object.keys(t.values).filter(k => JSON.stringify(t.values[k]) !== JSON.stringify(r2Builtin(t.base)[k]));
+        return `<div class="tpl-row" style="flex-wrap:wrap">
+          <input class="input" data-r2name="${esc(t.id)}" value="${esc(t.name)}" style="max-width:240px">
+          ${t.id === store.default ? '<span class="pill ready">default</span>' : `<button class="btn sm ghost" data-r2default="${esc(t.id)}">Make default</button>`}
+          <span class="muted" style="font-size:12px">${users(t.id)} client${users(t.id) === 1 ? '' : 's'} · started from ${esc({ client: 'Letter to client', partner: 'Missing-items list', internal: 'Internal checklist' }[t.base])} · ${diff.length} field${diff.length === 1 ? '' : 's'} changed</span>
+          <span class="spacer"></span>
+          <button class="btn sm" data-r2dup="${esc(t.id)}">Duplicate</button>
+          ${diff.length ? `<button class="btn sm" data-r2restoreall="${esc(t.id)}">Restore built-in wording…</button>` : ''}
+          ${store.list.length > 1 && t.id !== store.default ? `<button class="btn sm danger" data-r2del="${esc(t.id)}">Delete</button>` : ''}
+          ${diff.length ? `<details style="flex-basis:100%;margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:12px">Show what differs from built-in</summary>
+            ${diff.map(k => `<div class="r2-diff"><div style="display:flex;gap:8px;align-items:center"><b>${esc(r2FieldName(k))}</b><span class="spacer"></span><button class="btn sm ghost" data-r2restore1="${esc(t.id)}|${esc(k)}">Restore built-in</button></div>
+              <div class="r2-diff-cols"><div><span class="muted">Template</span><br>${esc(JSON.stringify(t.values[k]).replace(/^"|"$/g, '').replace(/\\n/g, '\n'))}</div><div><span class="muted">Built-in</span><br>${esc(JSON.stringify(r2Builtin(t.base)[k] ?? '').replace(/^"|"$/g, '').replace(/\\n/g, '\n'))}</div></div></div>`).join('')}</details>` : ''}
+        </div>`; }).join('')}</div>
+      <div class="hint">Restoring built-in wording affects every client using the template, except fields a client customized. Everything here can be undone with Ctrl+Z.</div>`,
+    footer: `${back ? '<button class="btn" data-action="r2-manage-back">‹ Back to report</button>' : ''}<span class="spacer"></span><button class="btn primary" data-action="modal-close">Done</button>`,
+    onMount: modalRoot => {
+      const root = modalRoot.querySelector('.modal-overlay');
+      root.addEventListener('change', e => {
+        const n = e.target.dataset.r2name; if (!n) return;
+        const s = r2Store(), t = s.list.find(x => x.id === n), name = e.target.value.trim();
+        if (name && name !== t.name) { t.name = name; r2SaveStore(s, `Rename template to “${name}”`); }
+      });
+      root.addEventListener('click', e => {
+        const d = e.target.closest('[data-r2default],[data-r2dup],[data-r2del],[data-r2restoreall],[data-r2restore1]'); if (!d) return;
+        const s = r2Store();
+        if (d.dataset.r2default) { s.default = d.dataset.r2default; r2SaveStore(s, 'Default report template'); }
+        else if (d.dataset.r2dup) {
+          const t = s.list.find(x => x.id === d.dataset.r2dup), id = uuid().slice(0, 8);
+          s.list.push({ id, name: `${t.name} (copy)`, base: t.base, values: JSON.parse(JSON.stringify(t.values)) });
+          r2SaveStore(s, `Duplicate “${t.name}”`);
+        } else if (d.dataset.r2del) {
+          const t = s.list.find(x => x.id === d.dataset.r2del);
+          if (!confirm(`Delete the template “${t.name}”? Clients using it switch to the default template.`)) return;
+          s.list = s.list.filter(x => x.id !== t.id); r2SaveStore(s, `Delete template “${t.name}”`);
+        } else if (d.dataset.r2restoreall) {
+          const t = s.list.find(x => x.id === d.dataset.r2restoreall);
+          if (!confirm(`Restore the built-in wording and settings for every field in “${t.name}”?\n\nEvery client using it is affected, except fields a client customized.`)) return;
+          t.values = {}; r2SaveStore(s, `Restore built-in “${t.name}”`);
+        } else if (d.dataset.r2restore1) {
+          const [id, k] = d.dataset.r2restore1.split('|'), t = s.list.find(x => x.id === id);
+          if (!confirm(`Restore the built-in “${r2FieldName(k)}” in “${t.name}”?`)) return;
+          delete t.values[k]; r2SaveStore(s, `Restore built-in ${r2FieldName(k)}`);
+        }
+      });
+    }
+  });
+}
+
+/* ---------- email ---------- */
+function r2EmailModal() {
+  const st = ui.modal;
+  const pages = r2Pages().filter(p => st.single || !st.skipEmpty || p.count);
+  if (!pages.length) return toast('Nothing to email.');
+  const back = { ...st };
+  let idx = 0;
+  const draw = () => {
+    const p = pages[idx], cp = clientReportPrefs(p.client);
+    const box = $('emBox') ? $('emBox').value : '☐ ', withHeader = $('emLh') ? $('emLh').checked : false, subjectKey = $('emSubj') ? $('emSubj').value : 'title';
+    const r = r2EmailText(p, p.values, { box, withHeader, subjectKey });
+    $('emTo').value = cp.contactEmail || '';
+    $('emSubject').value = r.subject; $('emBody').value = r.body;
+    const href = `mailto:${encodeURIComponent(cp.contactEmail || '')}?subject=${encodeURIComponent(r.subject)}&body=${encodeURIComponent(r.body)}`;
+    $('emOpen').href = href;
+    const notes = [];
+    if (!cp.contactEmail) notes.push('No contact email for this client (✏️ Edit client).');
+    if (href.length > 1900) notes.push('Long message: some email apps cut off “Open in email” — use Copy message.');
+    if (r.bad) notes.push(`${r.bad} unknown variable${r.bad > 1 ? 's' : ''} left as typed.`);
+    $('emNote').textContent = notes.join(' ');
+    if ($('emWho')) $('emWho').textContent = `${idx + 1} of ${pages.length}: ${p.client.name}`;
+  };
+  ui.modal = { kind: 'r2email', back };
+  openModal({
+    title: 'Copy for email',
+    size: 'wide',
+    body: `${pages.length > 1 ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><button class="btn sm" id="emPrev">‹</button><b id="emWho"></b><button class="btn sm" id="emNext">›</button></div>` : ''}
+      <div class="row3">
+        <div class="field"><label>To</label><input class="input" id="emTo" readonly></div>
+        <div class="field"><label>Subject from</label><select class="input" id="emSubj"><option value="title">Title</option><option value="hdr.re">Re: line</option></select></div>
+        <div class="field"><label>Checkboxes as</label><select class="input" id="emBox"><option value="☐ ">☐ box</option><option value="[ ] ">[ ] brackets</option><option value="- ">- dash</option></select></div>
+      </div>
+      <div class="field"><label style="display:flex">Subject <button class="link" style="margin-left:auto" data-r2copy="emSubject">copy subject</button></label><input class="input" id="emSubject" readonly></div>
+      <div class="field"><label style="display:flex">Message <button class="link" style="margin-left:auto" data-r2copy="emBody">copy message</button></label><textarea class="input" id="emBody" rows="18" readonly style="font:13px/1.5 ui-monospace,Consolas,monospace"></textarea></div>
+      <label class="check"><input type="checkbox" id="emLh"> Include letterhead and address block (usually left out — your email signature covers it)</label>`,
+    footer: `<span class="muted" style="font-size:12px" id="emNote"></span><span class="spacer"></span><button class="btn" data-action="r2-email-back">‹ Back to report</button>
+      <a class="btn" id="emOpen" href="#">✉️ Open in email</a><button class="btn primary" data-r2copy="emBody">📋 Copy message</button>`,
+    onMount: modalRoot => {
+      const root = modalRoot.querySelector('.modal-overlay');
+      ['emSubj', 'emBox', 'emLh'].forEach(id => root.querySelector('#' + id).addEventListener('change', draw));
+      if (root.querySelector('#emPrev')) {
+        root.querySelector('#emPrev').onclick = () => { idx = (idx + pages.length - 1) % pages.length; draw(); };
+        root.querySelector('#emNext').onclick = () => { idx = (idx + 1) % pages.length; draw(); };
+      }
+      root.addEventListener('click', async e => {
+        const cp = e.target.closest('[data-r2copy]'); if (!cp) return;
+        const el = root.querySelector('#' + cp.dataset.r2copy);
+        el.focus(); el.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch {}
+        if (!ok) { try { await Promise.race([navigator.clipboard.writeText(el.value), new Promise((_, r) => setTimeout(r, 1500))]); ok = true; } catch {} }
+        toast(ok ? (cp.dataset.r2copy === 'emSubject' ? 'Subject copied.' : 'Message copied — paste it into your email.') : 'Couldn’t reach the clipboard — the text is selected, press Ctrl+C.');
+      });
+      draw();
+    }
+  });
+}
+function r2Back(saved) {
+  ui.modal = saved;
+  r2Render();
 }
 
 /* =====================================================================
@@ -3557,12 +4491,16 @@ async function handleAction(action, el, ev) {
     case 'settings': return db ? settingsModal() : toast('Open a database first.');
     case 'settings-save': {
       const v = parseInt($('setStale').value, 10);
-      const prof = { preparer: $('setPreparer').value.trim(), firm: $('setFirm').value.trim(), contact: $('setContact').value.trim() };
+      const prof = { ...reportProfile(), preparer: $('setPreparer').value.trim(), firm: $('setFirm').value.trim(), contact: $('setContact').value.trim(),
+        firmPhone: $('setPhone').value.trim(), firmEmail: $('setEmail').value.trim(), firmAddress: $('setAddress').value.trim(),
+        signature: $('setSignature').value.replace(/\s+$/, ''), respondDays: parseInt($('setRespond').value, 10) || 10 };
+      const beta = $('setBeta').checked ? '1' : '0';
       closeModal();
-      mutate('Change settings', () => { if (v >= 1) setSetting('stale_months', v); setSetting('report_profile', JSON.stringify(prof)); });
+      mutate('Change settings', () => { if (v >= 1) setSetting('stale_months', v); setSetting('report_profile', JSON.stringify(prof)); setSetting('beta', beta); });
       return;
     }
     case 'undo': return undo();
+    case 'r2-manage': closeModal(); return r2ManageModal(null);
     case 'year-prev': case 'year-next': case 'year-today':
       ui.year = action === 'year-today' ? TODAY_YEAR : ui.year + (action === 'year-prev' ? -1 : 1);
       LS.set('rt.year', ui.year); return render();
@@ -3665,8 +4603,15 @@ async function handleAction(action, el, ev) {
       const next = PAY_STATUSES[(PAY_RANK[runStatus(map, d)] + 1) % PAY_STATUSES.length].v;
       return mutate(`Payroll ${d} → ${payLabel(next)}`, () => setRun(ui.clientId, d, next));
     }
-    case 'report-all': return reportModal(getClients(false).map(c => c.id));
-    case 'report-client': return reportModal([ui.clientId]);
+    case 'report-all': return (betaOn() ? report2Modal : reportModal)(getClients(false).map(c => c.id));
+    case 'report-client': return (betaOn() ? report2Modal : reportModal)([ui.clientId]);
+    case 'r2-legacy': { const ids = ui.modal.clientIds; closeModal(); return reportModal(ids); }
+    case 'r2-save': return r2Save(el.dataset.to);
+    case 'r2-make-default': return r2MakeDefault();
+    case 'r2-email': return r2EmailModal();
+    case 'r2-email-back': return r2Back(ui.modal.back);
+    case 'r2-manage-back': { const ids = ui.modal.back; return report2Modal(ids); }
+    case 'r2-logo-remove': return mutate('Remove letterhead logo', () => setSetting('report_logo', ''));
     case 'rp-save-default': return saveReportDefault(false);
     case 'rp-save-client': return saveReportDefault(true);
     case 'rp-reset': { const st = ui.modal; st.cfg = JSON.parse(JSON.stringify(REPORT_TEMPLATES[st.cfg.key])); st.cfg.key = Object.keys(REPORT_TEMPLATES).find(k => REPORT_TEMPLATES[k].label === st.cfg.label); st.cfg.headings = {}; return renderReportModal(); }
@@ -3722,7 +4667,7 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && db) { e.preventDefault(); $('clientSearch').focus(); $('clientSearch').select(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing && db) { e.preventDefault(); undo(); }
   if (e.key === 'Enter' && modalOpen() && document.activeElement?.tagName === 'INPUT' && document.activeElement.type !== 'checkbox'
-      && !document.activeElement.closest('.builder-row') && !(ui.modal && ['checks', 'report', 'chkqbo', 'chkstmt'].includes(ui.modal.kind))) {
+      && !document.activeElement.closest('.builder-row') && !(ui.modal && ['checks', 'report', 'chkqbo', 'chkstmt', 'report2', 'r2manage', 'r2email'].includes(ui.modal.kind))) {
     const primary = $('modalRoot').querySelector('.modal-footer .btn.primary'); if (primary) { e.preventDefault(); primary.click(); }
   }
 });
