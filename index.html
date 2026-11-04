@@ -202,6 +202,11 @@
   .rec-done { background: var(--ok); color: #fff; }
   .rec-scan { background: var(--warn); color: #fff; }
   .rec-ghost { background: var(--danger); color: #fff; }
+  .mpick { display: inline-flex; gap: 6px; align-items: center; }
+  .mpick .mp-sel { width: auto; padding: 7px 8px; }
+  .mpick .mp-sel.compact { padding: 4px 6px; font-size: 12px; }
+  .field .mpick { display: flex; }
+  .field .mpick .mp-m { flex: 1 1 auto; min-width: 0; }
   .rec-skip { border: 1px dashed var(--border-strong); color: var(--muted); font-weight: 600; }
   .rec-skip:hover { border-color: var(--text); color: var(--text); }
   .acc-grid .skip-cell { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--surface-3) 6px 7px); }
@@ -654,6 +659,29 @@ function uuid() {
   const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
+/** Month + year dropdowns that keep a hidden <input id=…> in sync as 'YYYY-MM' ('' when blank).
+    Works the same in every browser (unlike <input type="month">). */
+function monthPicker(id, value, { blank = false, blankLabel = '—', compact = false } = {}) {
+  const k = parseYM(value);
+  const vm = k == null ? '' : k % 12, vy = k == null ? '' : Math.floor(k / 12);
+  const years = new Set(); for (let y = 2015; y <= TODAY_YEAR + 2; y++) years.add(y); if (vy) years.add(vy);
+  const cls = compact ? 'input mp-sel compact' : 'input mp-sel';
+  return `<span class="mpick" data-blank="${blank ? 1 : 0}">
+    <select class="${cls} mp-m" aria-label="Month">${blank ? `<option value="" ${vm === '' ? 'selected' : ''}>${esc(blankLabel)}</option>` : ''}${MONTHS_LONG.map((mn, i) => `<option value="${i}" ${i === vm ? 'selected' : ''}>${mn}</option>`).join('')}</select>
+    <select class="${cls} mp-y" aria-label="Year">${blank ? `<option value="" ${vy === '' ? 'selected' : ''}></option>` : ''}${[...years].sort().map(y => `<option value="${y}" ${y === vy ? 'selected' : ''}>${y}</option>`).join('')}</select>
+    <input type="hidden" id="${id}" value="${esc(k == null ? '' : ymStr(vy, vm))}">
+  </span>`;
+}
+document.addEventListener('change', ev => {
+  const wrap = ev.target.closest && ev.target.closest('.mpick');
+  if (!wrap || ev.target.tagName !== 'SELECT') return;
+  const mSel = wrap.querySelector('.mp-m'), ySel = wrap.querySelector('.mp-y'), hidden = wrap.querySelector('input[type=hidden]');
+  if (ev.target === mSel && mSel.value !== '' && ySel.value === '') ySel.value = String(TODAY_YEAR);   // picking a month fills in this year
+  if (ev.target === ySel && ySel.value !== '' && mSel.value === '') mSel.value = '0';                // picking a year starts at January
+  if (ev.target === mSel && mSel.value === '') ySel.value = '';                                     // clearing the month clears it all
+  hidden.value = mSel.value !== '' && ySel.value !== '' ? ymStr(+ySel.value, +mSel.value) : '';
+  hidden.dispatchEvent(new Event('change'));
+});
 function ordinal(n) { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
 
 /** "1,234.56" / "(1,234.56)" / "-50" / "$12" -> integer cents. '' -> null, junk -> NaN */
@@ -2146,7 +2174,7 @@ function clientModal(clientId = null) {
     body: `
       <div class="field"><label>Client / business name</label><input class="input" id="fName" value="${esc(c.name)}" placeholder="e.g. Stark Industries"></div>
       <div class="field"><label>Notes <span style="font-weight:400">(optional)</span></label><textarea class="input" id="fNotes" placeholder="Contact, how statements arrive, fiscal year, etc.">${esc(c.notes)}</textarea></div>
-      <div class="field"><label>Tracking starts <span style="font-weight:400">(optional)</span></label><input type="month" class="input" id="fStart" value="${esc(c.start_ym || '')}" style="max-width:220px">
+      <div class="field"><label>Tracking starts <span style="font-weight:400">(optional)</span></label>${monthPicker('fStart', c.start_ym, { blank: true, blankLabel: 'From the beginning' })}
         <div class="hint">For a business that started mid-year: nothing before this month is expected — no statements, payroll weeks or quarterly filings.</div></div>
       ${isNew ? `
         <div class="field">
@@ -2231,8 +2259,8 @@ function accountModal(clientId, accId = null) {
         <div></div>
       </div>
       <div class="row3">
-        <div class="field"><label>Opened (first month tracked)</label><input type="month" class="input" id="aOpened" value="${esc(a.opened || '')}"><div class="hint">Blank = tracked all year.</div></div>
-        <div class="field"><label>Closed (last month tracked)</label><input type="month" class="input" id="aClosed" value="${esc(a.closed || '')}"><div class="hint">Outside months don't count toward progress.</div></div>
+        <div class="field"><label>Opened (first month tracked)</label>${monthPicker('aOpened', a.opened, { blank: true, blankLabel: 'Always open' })}<div class="hint">First month this account has statements.</div></div>
+        <div class="field"><label>Closed (last month tracked)</label>${monthPicker('aClosed', a.closed, { blank: true, blankLabel: 'Still open' })}<div class="hint">Last month with a statement. Months outside the range don't count.</div></div>
         <div></div>
       </div>
       <div class="field"><label>Notes</label><textarea class="input" id="aNotes" placeholder="Statement delivery, login, who sends it…">${esc(a.notes)}</textarea></div>
@@ -2453,7 +2481,7 @@ function checkRegisterModal(accId, seriesId = null, keep = false) {
         <span class="muted" style="font-size:12px"> — ranges and lists, e.g. <code>1001-1045, 1047, 1050-52</code>. Pasting a column of numbers works too. Ctrl+Enter = mark cleared.</span>
         <textarea class="input" id="chkInput" style="margin-top:6px" placeholder="1001-1045, 1047">${esc(ui.modal.input)}</textarea>
         <div class="bulk-row">
-          <label style="font-size:13px">Month <input type="month" class="input" id="chkMonth" value="${ui.modal.ym}" style="width:auto;display:inline-block;padding:5px 8px"></label>
+          <label style="font-size:13px">Month ${monthPicker('chkMonth', ui.modal.ym, { compact: true })}</label>
           <span class="spacer"></span>
           <button class="btn" data-action="chk-apply" data-op="entered">Mark entered</button>
           <button class="btn primary" data-action="chk-apply" data-op="cleared">Mark cleared</button>
@@ -2464,7 +2492,7 @@ function checkRegisterModal(accId, seriesId = null, keep = false) {
       </div>
       <div class="chk-stats">
         <span class="pill ready">${sum.outstanding.length} outstanding as of</span>
-        <input type="month" class="input" id="chkAsOf" value="${ui.modal.asOf}" style="width:auto;padding:2px 6px;font-size:12px">
+        ${monthPicker('chkAsOf', ui.modal.asOf, { compact: true })}
         <span class="pill plain">${sum.entered + sum.cleared} entered</span>
         <span class="pill ok">${sum.cleared} cleared</span>
         <span class="pill plain">${sum.void} void</span>
@@ -2515,7 +2543,7 @@ function qboImportModal(accId) {
       <textarea class="input" id="qbText" style="min-height:120px;font-family:ui-monospace,Consolas,monospace;font-size:12px" placeholder="Distribution account,Transaction date,Transaction type,Num,Name,Description,Item split account,Amount,Balance,Cleared"></textarea>
       <div class="row2" style="margin-top:10px">
         <div class="field"><label>QBO account in this report</label><select class="input" id="qbAcct"><option value="">(load a report first)</option></select></div>
-        <div class="field"><label>Mark cleared checks as cleared in</label><input type="month" class="input" id="qbMonth" value="${TODAY_YM}"><div class="hint">QBO doesn't export the clear date, so newly cleared checks get this month. Use the statement month you reconciled through.</div></div>
+        <div class="field"><label>Mark cleared checks as cleared in</label>${monthPicker('qbMonth', TODAY_YM)}<div class="hint">QBO doesn't export the clear date, so newly cleared checks get this month. Use the statement month you reconciled through.</div></div>
       </div>
       <div id="qbPreview"></div>`,
     footer: `<button class="btn" data-action="chk-stmt-back">‹ Back to register</button><span class="spacer"></span>
@@ -2530,7 +2558,10 @@ function qboImportModal(accId) {
         if (!accts.includes(ui.modal.acct)) ui.modal.acct = guess;
         sel.innerHTML = accts.length ? accts.map(a => `<option ${a === ui.modal.acct ? 'selected' : ''}>${esc(a)}</option>`).join('') : '<option value="">(all rows)</option>';
         const yms = parsed.rows.map(r => r.ym).filter(Boolean).sort();
-        if (yms.length && !ui.modal.ymTouched) { ui.modal.ym = yms[yms.length - 1]; mo.value = ui.modal.ym; }
+        if (yms.length && !ui.modal.ymTouched) {
+          ui.modal.ym = yms[yms.length - 1]; mo.value = ui.modal.ym;
+          const w = mo.closest('.mpick'); w.querySelector('.mp-m').value = String(+ui.modal.ym.slice(5) - 1); w.querySelector('.mp-y').value = ui.modal.ym.slice(0, 4);
+        }
         qboPreview();
       };
       t.addEventListener('input', reparse);
@@ -2596,7 +2627,7 @@ function stmtClearModal(accId) {
       <div class="bulk-row">
         <button class="btn sm" data-action="chk-stmt-file">📂 Load CSV file…</button>
         <span class="spacer"></span>
-        <label style="font-size:13px">Statement month <input type="month" class="input" id="stMonth" value="${ui.modal.ym}" style="width:auto;display:inline-block;padding:5px 8px"></label>
+        <label style="font-size:13px">Statement month ${monthPicker('stMonth', ui.modal.ym, { compact: true })}</label>
       </div>
       <div class="hint">The statement month is used for any line whose date can't be read.</div>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="stVoids" ${ui.modal.clearVoids ? 'checked' : ''}> Also clear checks marked <b>void</b> if they show up on the statement</label>
