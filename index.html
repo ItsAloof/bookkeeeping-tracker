@@ -921,7 +921,8 @@ function saveNow() {
 }
 /* ---------- Server mode: the page was opened from app.py ---------- */
 const CONFLICT = 'The database was changed from another window or device. Reload to get the latest version.';
-let serverEtag = null, serverForceNext = false;
+let serverEtag = null, serverForceNext = false, serverSaving = false, serverPageVersion = null;
+const normTag = t => (t ? String(t).replace(/^W\//, '') : t);   // proxies (e.g. Tailscale Serve) may mark ETags weak
 async function serverInfo() {
   if (!/^https?:$/.test(location.protocol)) return null;
   try {
@@ -935,25 +936,75 @@ async function serverLoad() {
   const r = await withTimeout(fetch('api/db', { cache: 'no-store' }), 20000, 'loading database from server');
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`Server returned ${r.status}`);
-  serverEtag = r.headers.get('ETag');
+  serverEtag = normTag(r.headers.get('ETag'));
   return new Uint8Array(await r.arrayBuffer());
 }
 async function serverSave(bytes) {
   if (lastSaveError === CONFLICT && !serverForceNext) return;   // don't overwrite someone else's changes
+  serverSaving = true;
   try {
     const r = await withTimeout(fetch('api/db', {
       method: 'PUT', body: bytes, headers: { 'Content-Type': 'application/x-sqlite3', 'If-Match': serverForceNext || !serverEtag ? '*' : serverEtag }
     }), 30000, 'saving to server');
     const j = await r.json().catch(() => ({}));
-    if (r.status === 409) { lastSaveError = CONFLICT; return; }
+    if (r.status === 409) { lastSaveError = CONFLICT; setTimeout(() => applyRemote({ conflict: true }), 0); return; }
     if (r.status === 401) throw new Error('The server asked for the password again. Reload the page to sign in.');
     if (!r.ok) throw new Error(j.error || `Server returned ${r.status}`);
-    serverEtag = j.etag || r.headers.get('ETag');
+    serverEtag = normTag(j.etag || r.headers.get('ETag'));
     serverForceNext = false;
     lastSaveError = null;
   } catch (e) { if (lastSaveError !== CONFLICT) lastSaveError = e.message || String(e); console.error(e); }
+  finally { serverSaving = false; }
+}
+
+/* ---------- Live sync: every open tab/device follows the server's copy ----------
+   Each tab checks the server's version every few seconds (and whenever it's brought back
+   into view). If another tab or device saved, this tab loads that version. The switch is an
+   undo step, so Ctrl+Z brings back what this tab had. If two tabs save at the same moment,
+   the later one loads the earlier one's version and keeps its own change in Undo. */
+const SYNC_EVERY_MS = 4000;
+let syncTimer = null, syncBusy = false;
+function startServerSync() {
+  if (syncTimer) return;
+  syncTimer = setInterval(checkRemote, SYNC_EVERY_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRemote(); });
+  window.addEventListener('focus', checkRemote);
+}
+async function checkRemote() {
+  if (storageMode !== 'server' || document.hidden || syncBusy || serverSaving || pendingSave) return;
+  const info = await serverInfo();
+  if (!info) return;
+  if (info.page && serverPageVersion && info.page !== serverPageVersion) showUpdateBanner();
+  if (info.etag && normTag(info.etag) !== serverEtag) await applyRemote({ conflict: false });
+}
+async function applyRemote({ conflict }) {
+  if (syncBusy || storageMode !== 'server') return;
+  syncBusy = true;
+  try {
+    const mine = exportBytes();
+    const bytes = await serverLoad();
+    if (!bytes) return;
+    const keepUndo = undoStack.slice();
+    const clientBefore = ui.clientId;
+    openDbFromBytes(bytes);                       // clears undo; restored below
+    undoStack.push(...keepUndo, { label: conflict ? 'Your change (saved at the same time as another window)' : 'Changes from another window or device', bytes: mine });
+    while (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    updateUndoBtn();
+    lastSaveError = null; pendingSave = false;
+    ui.clientId = clientBefore && one('SELECT id FROM clients WHERE id = ?', [clientBefore]) ? clientBefore : null;
+    render();
+    if (ui.modal && ['checks', 'report', 'report2'].includes(ui.modal.kind)) rerenderModal();
+    toast(conflict ? 'Another window saved at the same time — loaded its version. Undo brings yours back.' : 'Updated with changes from another window or device.', 'Undo', undo, 7000);
+  } catch (e) { console.warn('Live sync failed:', e); }
+  finally { syncBusy = false; }
+}
+function showUpdateBanner() {
+  if ($('updateBanner')) return;
+  $('bannerRoot').insertAdjacentHTML('beforeend', `<div class="banner" id="updateBanner">A new version of the tracker was installed. <button class="btn sm primary" onclick="location.reload()">Reload now</button><span class="muted">Your data is saved.</span></div>`);
 }
 async function serverStart() {
+  const info = await serverInfo();
+  serverPageVersion = info && info.page;
   const bytes = await serverLoad();
   openDbFromBytes(bytes);          // null = brand-new empty database
   storageMode = 'server';
@@ -961,6 +1012,7 @@ async function serverStart() {
   lastSaveError = null;
   if (!bytes) { serverForceNext = true; await saveNow(); }
   start();
+  startServerSync();
   if (!bytes) maybeOfferLegacyImport();
 }
 /** Replace everything on the server with these bytes (or a fresh database). */
@@ -1080,12 +1132,8 @@ function actDownloadCopy() {
 }
 async function actSaveChipClick() {
   if (storageMode === 'server') {
-    if (lastSaveError === CONFLICT) {
-      if (confirm('Someone (or another tab) changed the database on the server.\n\nOK = load the latest version from the server (your unsaved edits in this tab are discarded).\nCancel = keep this tab as is.')) {
-        lastSaveError = null; pendingSave = false;
-        openDbFromBytes(await serverLoad()); start();
-      }
-    } else if (lastSaveError) { lastSaveError = null; await saveNow(); }
+    if (lastSaveError === CONFLICT) await applyRemote({ conflict: true });
+    else if (lastSaveError) { lastSaveError = null; await saveNow(); }
     return;
   }
   if (storageMode === 'browser') {

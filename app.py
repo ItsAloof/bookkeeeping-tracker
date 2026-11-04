@@ -70,6 +70,34 @@ def etag_of(data: bytes) -> str:
     return '"' + hashlib.sha256(data).hexdigest()[:32] + '"'
 
 
+_etag_cache: tuple = (None, None)   # ((mtime_ns, size), etag)
+
+
+def current_etag() -> str | None:
+    """Version of the database on disk, without re-reading it unless it changed."""
+    global _etag_cache
+    try:
+        st = DB_PATH.stat()
+    except FileNotFoundError:
+        return None
+    key = (st.st_mtime_ns, st.st_size)
+    if _etag_cache[0] != key:
+        _etag_cache = (key, etag_of(DB_PATH.read_bytes()))
+    return _etag_cache[1]
+
+
+def page_version() -> str:
+    """Changes whenever index.html changes (e.g. after updater.py installs an update)."""
+    st = INDEX_HTML.stat()
+    return f"{st.st_mtime_ns:x}-{st.st_size:x}"
+
+
+def norm_tag(tag: str) -> str:
+    """Treat weak ETags (W/"...") the same as strong ones; reverse proxies sometimes add W/."""
+    tag = tag.strip()
+    return tag[2:] if tag.startswith("W/") else tag
+
+
 def current_db() -> bytes | None:
     try:
         return DB_PATH.read_bytes()
@@ -228,10 +256,10 @@ def application(environ, start_response):
 
     # --- API
     if path == "/api/info" and method == "GET":
-        data = current_db()
+        tag = current_etag()
         return json_response(start_response, "200 OK", {
-            "server": True, "exists": data is not None, "etag": etag_of(data) if data else None,
-            "size": len(data) if data else 0, "protected": bool(PASSWORD),
+            "server": True, "exists": tag is not None, "etag": tag,
+            "size": DB_PATH.stat().st_size if tag else 0, "protected": bool(PASSWORD), "page": page_version(),
         })
 
     if path == "/api/db" and method in ("GET", "HEAD"):
@@ -256,7 +284,7 @@ def application(environ, start_response):
             return json_response(start_response, "400 Bad Request", {"error": "Upload was cut off."})
         if err := validate_sqlite(data):
             return json_response(start_response, "422 Unprocessable Entity", {"error": err})
-        if_match = environ.get("HTTP_IF_MATCH", "").strip()
+        if_match = norm_tag(environ.get("HTTP_IF_MATCH", ""))
         with _db_lock:
             existing = current_db()
             if existing is not None:

@@ -111,7 +111,18 @@ class ServerTest(unittest.TestCase):
         backups = json.loads(self.req("GET", "/api/backups")[2])
         self.assertGreaterEqual(len(backups), 1)
 
-    def test_05_vendor_paths_are_restricted(self):
+    def test_05_info_tracks_version_and_weak_etags(self):
+        status, _, body = self.req("PUT", "/api/db", tracker_db(self.dir / "a.db", 7), {"If-Match": "*"})
+        tag = json.loads(body)["etag"]
+        info = json.loads(self.req("GET", "/api/info")[2])
+        self.assertEqual(info["etag"], tag)
+        self.assertTrue(info["page"])
+        # A proxy may hand the page a weak ETag (W/"..."); saving with it must still work.
+        status, _, body = self.req("PUT", "/api/db", tracker_db(self.dir / "a.db", 8), {"If-Match": "W/" + tag})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(self.req("GET", "/api/info")[2])["etag"], json.loads(body)["etag"])
+
+    def test_06_vendor_paths_are_restricted(self):
         self.assertEqual(self.req("GET", "/vendor/../tracker.db")[0], 404)
         self.assertEqual(self.req("GET", "/vendor/anything.js")[0], 404)
 
