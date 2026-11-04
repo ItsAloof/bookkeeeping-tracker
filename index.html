@@ -202,6 +202,10 @@
   .rec-done { background: var(--ok); color: #fff; }
   .rec-scan { background: var(--warn); color: #fff; }
   .rec-ghost { background: var(--danger); color: #fff; }
+  .rec-skip { border: 1px dashed var(--border-strong); color: var(--muted); font-weight: 600; }
+  .rec-skip:hover { border-color: var(--text); color: var(--text); }
+  .acc-grid .skip-cell { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--surface-3) 6px 7px); }
+  .q-cell.na { color: var(--muted); background: repeating-linear-gradient(135deg, transparent 0 6px, var(--surface-3) 6px 7px); }
 
   /* Overview */
   .ov-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
@@ -313,6 +317,7 @@
   .pw.entered { background: var(--st-scanned-bg); color: var(--st-scanned-fg); }
   .pw.tied { background: var(--st-entered-bg); color: var(--st-entered-fg); }
   .pw.future { background: var(--surface-3); color: var(--muted); }
+  .pw.none { background: transparent; color: var(--muted); border: 1px dashed var(--border-strong); text-decoration: line-through; }
   .pw.od { box-shadow: 0 0 0 2px var(--danger); }
   .acc-grid.tall > div { align-items: flex-start; }
   .q-grid { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--border); }
@@ -448,7 +453,7 @@ const SQLJS_CDNS = [
   `https://cdnjs.cloudflare.com/ajax/libs/sql.js/${SQLJS_VERSION}/`,
   `https://cdn.jsdelivr.net/npm/sql.js@${SQLJS_VERSION}/dist/`
 ];
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -486,7 +491,8 @@ const PAY_STATUSES = [
   { v: 'not_received', short: 'Not Rec’d', label: 'Report not received' },
   { v: 'received',     short: 'Received',  label: 'Report received' },
   { v: 'entered',      short: 'Entered',   label: 'Entered in books' },
-  { v: 'tied',         short: 'Tied ✓',    label: 'Tied to bank' }
+  { v: 'tied',         short: 'Tied ✓',    label: 'Tied to bank' },
+  { v: 'none',         short: 'None',      label: 'No payroll this week' }
 ];
 const PAY_RANK = Object.fromEntries(PAY_STATUSES.map((s, i) => [s.v, i]));
 const payLabel = v => (PAY_STATUSES.find(s => s.v === v) || { label: v }).label;
@@ -500,6 +506,7 @@ CREATE TABLE IF NOT EXISTS clients (
   name TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   archived INTEGER NOT NULL DEFAULT 0,
+  start_ym TEXT,                     -- 'YYYY-MM' nothing is expected before this month (NULL = always)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS accounts (
@@ -532,6 +539,7 @@ CREATE TABLE IF NOT EXISTS periods (
   end_bal INTEGER,                   -- cents, statement ending balance
   gl_bal INTEGER,                    -- cents, books ending balance
   note TEXT NOT NULL DEFAULT '',
+  skipped INTEGER NOT NULL DEFAULT 0, -- 1 = no activity this month: ignored by progress, reports and overdue
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (account_id, year, month)
 );
@@ -582,6 +590,7 @@ CREATE TABLE IF NOT EXISTS payroll_quarters (
   wages_941 INTEGER,                        -- cents
   wages_books INTEGER,                      -- cents
   note TEXT NOT NULL DEFAULT '',
+  skipped INTEGER NOT NULL DEFAULT 0,       -- 1 = no filing required this quarter
   PRIMARY KEY (client_id, year, quarter)
 );
 CREATE TABLE IF NOT EXISTS payroll_years (
@@ -753,6 +762,9 @@ function migrate() {
   ensureColumn('periods', 'end_bal', 'INTEGER');
   ensureColumn('periods', 'gl_bal', 'INTEGER');
   ensureColumn('periods', 'note', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn('periods', 'skipped', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('clients', 'start_ym', 'TEXT');
+  ensureColumn('payroll_quarters', 'skipped', 'INTEGER NOT NULL DEFAULT 0');
   for (const t of ['clients', 'accounts', 'check_series', 'payroll_setup']) {
     const key = t === 'payroll_setup' ? 'client_id' : 'id';
     q(`SELECT ${key} AS k FROM ${t} WHERE uuid IS NULL`).forEach(r => run(`UPDATE ${t} SET uuid = ? WHERE ${key} = ?`, [uuid(), r.k]));
@@ -774,6 +786,7 @@ function openDbFromBytes(bytes) {
   if (tables.size && !tables.has('clients')) { d.close(); throw new Error('This file is a SQLite database, but not a Reconciliation Tracker database.'); }
   if (db) db.close();
   db = d;
+  resetCaches();
   run('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA_SQL);
   const was = migrate();
@@ -788,8 +801,9 @@ function openDbFromBytes(bytes) {
 }
 
 /* Inserts that always assign a UUID */
-function insertClient({ name, notes = '', archived = 0, uuid: u = null }) {
-  run('INSERT INTO clients (uuid, name, notes, archived) VALUES (?,?,?,?)', [u || uuid(), name, notes, archived ? 1 : 0]);
+function insertClient({ name, notes = '', archived = 0, uuid: u = null, start_ym = null }) {
+  run('INSERT INTO clients (uuid, name, notes, archived, start_ym) VALUES (?,?,?,?,?)', [u || uuid(), name, notes, archived ? 1 : 0, start_ym || null]);
+  resetCaches();
   return lastId();
 }
 function insertAccount(a) {
@@ -1067,9 +1081,10 @@ async function actSaveChipClick() {
    ===================================================================== */
 function mutate(label, fn) {
   const snapshot = exportBytes();
-  try { run('BEGIN'); fn(); run('COMMIT'); }
+  try { run('BEGIN'); fn(); run('COMMIT'); resetCaches(); }
   catch (e) {
     try { run('ROLLBACK'); } catch {}
+    resetCaches();
     alert('Something went wrong: ' + e.message);
     console.error(e);
     return false;
@@ -1088,6 +1103,7 @@ function undo() {
   db.close();
   db = new SQL.Database(last.bytes);
   run('PRAGMA foreign_keys = ON');
+  resetCaches();
   if (ui.clientId && !one('SELECT id FROM clients WHERE id = ?', [ui.clientId])) ui.clientId = null;
   updateUndoBtn();
   scheduleSave();
@@ -1113,10 +1129,20 @@ function cutoffMonth(year, mode = progressMode()) {
 }
 const reportCutoff = year => cutoffMonth(year, 'ytd');
 
+/* Client "tracking starts" month, cached because isActiveMonth runs constantly */
+let _clientStart = null;
+function resetCaches() { _clientStart = null; }
+function clientStart(cid) {
+  if (!_clientStart) { _clientStart = new Map(); q('SELECT id, start_ym FROM clients').forEach(r => _clientStart.set(r.id, r.start_ym || null)); }
+  return _clientStart.get(cid) || null;
+}
+/** Is this account expected to have activity in this month? (account open/closed + client start) */
 function isActiveMonth(acc, year, m) {
   const k = ymKey(year, m);
   const o = parseYM(acc.opened), c = parseYM(acc.closed);
+  const cs = acc.client_id != null ? parseYM(clientStart(acc.client_id)) : null;
   if (o != null && k < o) return false;
+  if (cs != null && k < cs) return false;
   if (c != null && k > c) return false;
   return true;
 }
@@ -1127,7 +1153,7 @@ function getAccounts(clientId) {
   return q('SELECT * FROM accounts WHERE client_id = ? ORDER BY sort_order, name COLLATE NOCASE', [clientId])
     .sort((a, b) => (groupOf(a.type) === groupOf(b.type) ? 0 : groupOf(a.type) === 'bank' ? -1 : 1));
 }
-const DEFAULT_PERIOD = { stmt_status: 'not_received', gl_status: 'not_received', reconciled: 0, reconciled_on: null, begin_bal: null, end_bal: null, gl_bal: null, note: '' };
+const DEFAULT_PERIOD = { stmt_status: 'not_received', gl_status: 'not_received', reconciled: 0, reconciled_on: null, begin_bal: null, end_bal: null, gl_bal: null, note: '', skipped: 0 };
 /** Map "accountId:month" -> period row for the year. Also carries December of the prior year as month -1. */
 function periodMap(year, clientId = null) {
   const sql = clientId == null
@@ -1148,14 +1174,14 @@ function setPeriod(accId, year, month, patch) {
   if ('reconciled' in patch) next.reconciled_on = !patch.reconciled ? null
     : 'reconciled_on' in patch ? patch.reconciled_on
     : cur.reconciled ? cur.reconciled_on : todayISO();
-  run(`INSERT INTO periods (account_id, year, month, stmt_status, gl_status, reconciled, reconciled_on, begin_bal, end_bal, gl_bal, note, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?, datetime('now'))
+  run(`INSERT INTO periods (account_id, year, month, stmt_status, gl_status, reconciled, reconciled_on, begin_bal, end_bal, gl_bal, note, skipped, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))
        ON CONFLICT(account_id, year, month) DO UPDATE SET
          stmt_status = excluded.stmt_status, gl_status = excluded.gl_status, reconciled = excluded.reconciled,
          reconciled_on = excluded.reconciled_on, begin_bal = excluded.begin_bal, end_bal = excluded.end_bal,
-         gl_bal = excluded.gl_bal, note = excluded.note, updated_at = excluded.updated_at`,
+         gl_bal = excluded.gl_bal, note = excluded.note, skipped = excluded.skipped, updated_at = excluded.updated_at`,
     [accId, year, month, next.stmt_status, next.gl_status, next.reconciled ? 1 : 0, next.reconciled_on,
-     next.begin_bal, next.end_bal, next.gl_bal, next.note || '']);
+     next.begin_bal, next.end_bal, next.gl_bal, next.note || '', next.skipped ? 1 : 0]);
 }
 
 /* Readiness depends on which documents the account uses */
@@ -1176,7 +1202,7 @@ function periodRange(acc, y, m) {
 }
 function dueDate(acc, y, m) { const c = closeDate(acc, y, m); return new Date(c.getFullYear(), c.getMonth(), c.getDate() + (acc.arrival_days ?? 7)); }
 function isOverdue(acc, p, y, m) {
-  if (p.stmt_status !== 'not_received' || p.reconciled) return false;
+  if (p.skipped || p.stmt_status !== 'not_received' || p.reconciled) return false;
   const d = dueDate(acc, y, m);
   return new Date() > new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
 }
@@ -1204,6 +1230,7 @@ function accountStats(acc, map, year) {
   for (let m = 0; m < 12; m++) {
     if (!isActiveMonth(acc, year, m)) continue;
     const p = getP(map, acc.id, m);
+    if (p.skipped) { if (unbroken) s.thru = m; continue; }   // no activity: doesn't count either way
     const entered = docsEntered(acc, p);
     if (p.reconciled && !docsComplete(acc, p)) s.issues++;
     if (prevRec === false && p.reconciled) s.issues++;
@@ -1229,7 +1256,7 @@ function yearEndPending(clientId, year) {
   if (year > TODAY_YEAR || (year === TODAY_YEAR && TODAY_MONTH < 11)) return [];
   return getAccounts(clientId).filter(a => midMonthClose(a) && isActiveMonth(a, year, 11) && isActiveMonth(a, year + 1, 0))
     .map(a => ({ acc: a, jan: getPeriod(a.id, year + 1, 0) }))
-    .filter(x => !isEntered(x.jan.stmt_status));
+    .filter(x => !x.jan.skipped && !isEntered(x.jan.stmt_status));
 }
 
 /* =====================================================================
@@ -1469,16 +1496,32 @@ function planQboSync(seriesList, rows, clearedYm) {
    ===================================================================== */
 function getPayrollSetup(clientId) { return one('SELECT * FROM payroll_setup WHERE client_id = ?', [clientId]); }
 /** All pay dates (YYYY-MM-DD) in a year for a weekly payroll. */
+/** First pay date that counts: the later of payroll's own start date and the client's tracking start. */
+function payStart(setup) {
+  const cs = clientStart(setup.client_id);
+  return [setup.start_date, cs ? `${cs}-01` : null].filter(Boolean).sort().pop() || null;
+}
 function payDates(setup, year) {
-  const out = [];
+  const out = [], start = payStart(setup);
   const d = new Date(year, 0, 1);
   while (d.getDay() !== setup.pay_weekday) d.setDate(d.getDate() + 1);
   for (; d.getFullYear() === year; d.setDate(d.getDate() + 7)) {
     const iso = isoDate(d);
-    if (!setup.start_date || iso >= setup.start_date) out.push(iso);
+    if (!start || iso >= start) out.push(iso);
   }
   return out;
 }
+/** Is a 941 / NYS-45 expected for this quarter? Not if marked "not required" or the quarter ended before payroll started. */
+function quarterApplies(setup, year, qn, row) {
+  if (row && row.skipped) return false;
+  const start = setup && payStart(setup);
+  return !start || start <= isoDate(new Date(year, qn * 3, 0));
+}
+function quarterNaReason(setup, year, qn, row) {
+  if (row && row.skipped) return 'Marked not required';
+  return `Before payroll started (${fmtShort(parseISO(payStart(setup)))}, ${payStart(setup).slice(0, 4)})`;
+}
+const w3Applies = (setup, cid, year) => getQuarters(cid, year).some((r, i) => quarterApplies(setup, year, i + 1, r));
 function payRunMap(clientId, year) {
   const m = new Map();
   q('SELECT * FROM payroll_runs WHERE client_id = ? AND pay_date LIKE ?', [clientId, `${year}-%`]).forEach(r => m.set(r.pay_date, r));
@@ -1501,17 +1544,17 @@ function quarterOverdue(year, qn, row) {
 const quarterEnded = (year, qn) => new Date() > new Date(year, qn * 3, 0, 23, 59);
 function getQuarters(clientId, year) {
   const rows = q('SELECT * FROM payroll_quarters WHERE client_id = ? AND year = ?', [clientId, year]);
-  return [1, 2, 3, 4].map(n => rows.find(r => r.quarter === n) || { client_id: clientId, year, quarter: n, f941: 0, nys45: 0, tied: 0, wages_941: null, wages_books: null, note: '' });
+  return [1, 2, 3, 4].map(n => rows.find(r => r.quarter === n) || { client_id: clientId, year, quarter: n, f941: 0, nys45: 0, tied: 0, wages_941: null, wages_books: null, note: '', skipped: 0 });
 }
 function getPayYear(clientId, year) {
   return one('SELECT * FROM payroll_years WHERE client_id = ? AND year = ?', [clientId, year]) || { client_id: clientId, year, w3: 0, w3_tied: 0, note: '' };
 }
 function setQuarter(clientId, year, quarter, patch) {
   const n = { ...getQuarters(clientId, year)[quarter - 1], ...patch };
-  run(`INSERT INTO payroll_quarters (client_id, year, quarter, f941, nys45, tied, wages_941, wages_books, note) VALUES (?,?,?,?,?,?,?,?,?)
+  run(`INSERT INTO payroll_quarters (client_id, year, quarter, f941, nys45, tied, wages_941, wages_books, note, skipped) VALUES (?,?,?,?,?,?,?,?,?,?)
        ON CONFLICT(client_id, year, quarter) DO UPDATE SET f941 = excluded.f941, nys45 = excluded.nys45, tied = excluded.tied,
-       wages_941 = excluded.wages_941, wages_books = excluded.wages_books, note = excluded.note`,
-    [clientId, year, quarter, n.f941 ? 1 : 0, n.nys45 ? 1 : 0, n.tied ? 1 : 0, n.wages_941, n.wages_books, n.note || '']);
+       wages_941 = excluded.wages_941, wages_books = excluded.wages_books, note = excluded.note, skipped = excluded.skipped`,
+    [clientId, year, quarter, n.f941 ? 1 : 0, n.nys45 ? 1 : 0, n.tied ? 1 : 0, n.wages_941, n.wages_books, n.note || '', n.skipped ? 1 : 0]);
 }
 function setPayYear(clientId, year, patch) {
   const n = { ...getPayYear(clientId, year), ...patch };
@@ -1536,18 +1579,19 @@ function payrollStats(clientId, year) {
   payDates(setup, year).forEach(d => {
     if (runOverdue(map, d)) s.overdue++;
     if (ytd && d > today) return;
+    if (runStatus(map, d) === 'none') return;     // no payroll that week
     s.total++;
     if (payDone(runStatus(map, d))) s.done++;
   });
   getQuarters(clientId, year).forEach((row, i) => {
     const qn = i + 1;
-    if (!quarterEnded(year, qn)) return;
+    if (!quarterEnded(year, qn) || !quarterApplies(setup, year, qn, row)) return;
     s.quartersDue++;
     if (row.tied) s.quartersTied++;
     if (quarterOverdue(year, qn, row)) s.overdue++;
     if (row.wages_941 != null && row.wages_books != null && row.wages_941 !== row.wages_books) s.issues++;
   });
-  if (w3Overdue(year, getPayYear(clientId, year))) s.overdue++;
+  if (w3Applies(setup, clientId, year) && w3Overdue(year, getPayYear(clientId, year))) s.overdue++;
   return s;
 }
 
@@ -1678,6 +1722,12 @@ function recCellState(acc, p) {
   if (docsAny(acc, p)) return ['rec-pending', 'Pending', 'Waiting on remaining entry.'];
   return ['rec-blocked', '—', 'Nothing received yet.'];
 }
+function inactiveWhy(acc, y, m) {
+  const k = ymKey(y, m), cs = parseYM(clientStart(acc.client_id));
+  if (cs != null && k < cs) return `Before this client's tracking start (${fmtYM(clientStart(acc.client_id))})`;
+  if (acc.opened && k < parseYM(acc.opened)) return `Before this account opened (${fmtYM(acc.opened)})`;
+  return `After this account closed (${fmtYM(acc.closed)})`;
+}
 function statusSelect(accId, m, field, val, extraTitle = '') {
   return `<select class="st st-${val}" data-action="status" data-acc="${accId}" data-m="${m}" data-field="${field}" title="${esc(statusLabel(val) + extraTitle)}">
     ${STATUSES.map(s => `<option value="${s.v}" ${s.v === val ? 'selected' : ''}>${s.short}</option>`).join('')}
@@ -1710,8 +1760,9 @@ function accountCardHTML(acc, map) {
   rows.forEach(([field, label]) => {
     grid += `<div class="rl">${label}</div>`;
     for (let m = 0; m < 12; m++) {
-      if (!isActiveMonth(acc, y, m)) { grid += `<div class="${today(m).trim()}"><span class="na" title="Account not open this month">—</span></div>`; continue; }
+      if (!isActiveMonth(acc, y, m)) { grid += `<div class="${today(m).trim()}"><span class="na" title="${esc(inactiveWhy(acc, y, m))}">—</span></div>`; continue; }
       const p = getP(map, acc.id, m);
+      if (p.skipped) { grid += `<div class="${today(m).trim()} skip-cell"><span class="na" title="No activity this month">no activity</span></div>`; continue; }
       const od = field === 'stmt_status' && isOverdue(acc, p, y, m);
       const extra = od ? ` — OVERDUE (expected by ${fmtShort(dueDate(acc, y, m))})` : '';
       grid += `<div class="${today(m).trim()}${od ? ' od' : ''}">${statusSelect(acc.id, m, field, p[field], extra)}</div>`;
@@ -1719,7 +1770,8 @@ function accountCardHTML(acc, map) {
   });
   grid += `<div class="rl strong rec-row">Reconciled</div>`;
   for (let m = 0; m < 12; m++) {
-    if (!isActiveMonth(acc, y, m)) { grid += `<div class="rec-row${today(m)}"><span class="na">n/a</span></div>`; continue; }
+    if (!isActiveMonth(acc, y, m)) { grid += `<div class="rec-row${today(m)}"><span class="na" title="${esc(inactiveWhy(acc, y, m))}">n/a</span></div>`; continue; }
+    if (getP(map, acc.id, m).skipped) { grid += `<div class="rec-row${today(m)}"><button class="rec-btn rec-skip" data-action="toggle-skip" data-acc="${acc.id}" data-m="${m}" title="No activity this month — click to track it again">Skipped</button></div>`; continue; }
     const [cls, txt, tip] = recCellState(acc, getP(map, acc.id, m));
     grid += `<div class="rec-row${today(m)}"><button class="rec-btn ${cls}" title="${esc(tip)}" data-action="toggle-rec" data-acc="${acc.id}" data-m="${m}">${txt}</button></div>`;
   }
@@ -1768,7 +1820,7 @@ function payrollCardHTML(clientId) {
   const cur = y === TODAY_YEAR ? TODAY_MONTH : -1;
   const bank = setup.bank_account_id ? one('SELECT name FROM accounts WHERE id = ?', [setup.bank_account_id]) : null;
   const series = setup.check_series_id ? one('SELECT * FROM check_series WHERE id = ?', [setup.check_series_id]) : null;
-  const meta = [setup.service, `${WEEKDAYS[setup.pay_weekday]}s`, bank ? `paid from ${bank.name}` : '', setup.start_date ? `since ${setup.start_date}` : ''].filter(Boolean).join(' · ');
+  const meta = [setup.service, `${WEEKDAYS[setup.pay_weekday]}s`, bank ? `paid from ${bank.name}` : '', payStart(setup) ? `since ${payStart(setup)}` : ''].filter(Boolean).join(' · ');
 
   let grid = `<div class="acc-grid tall"><div class="rl mh">Pay date</div>${MONTHS.map((mn, m) => `<div class="mh${m === cur ? ' today' : ''}">${mn}</div>`).join('')}`;
   grid += `<div class="rl">📑 Weekly runs</div>`;
@@ -1788,6 +1840,12 @@ function payrollCardHTML(clientId) {
   let qhtml = `<div class="q-grid">`;
   quarters.forEach((row, i) => {
     const qn = i + 1;
+    if (!quarterApplies(setup, y, qn, row)) {
+      qhtml += `<div class="q-cell na"><h4>Q${qn} <span style="font-weight:400">not required</span></h4>
+        <div style="margin-bottom:8px">${esc(quarterNaReason(setup, y, qn, row))}</div>
+        ${row.skipped ? `<label class="check"><input type="checkbox" data-action="q-flag" data-q="${qn}" data-field="skipped" checked> Not required this quarter</label>` : ''}</div>`;
+      return;
+    }
     const od = quarterEnded(y, qn) && quarterOverdue(y, qn, row);
     const diff = row.wages_941 != null && row.wages_books != null ? row.wages_941 - row.wages_books : null;
     qhtml += `<div class="q-cell ${od ? 'od' : ''}">
@@ -1800,10 +1858,11 @@ function payrollCardHTML(clientId) {
         <span class="muted">Books</span><input class="input money" data-action="q-money" data-q="${qn}" data-field="wages_books" value="${fmtMoney(row.wages_books)}" placeholder="optional">
         ${diff != null ? `<span class="muted">Diff</span><b style="text-align:right;color:${diff ? 'var(--danger)' : 'var(--ok)'}">${diff ? fmtMoney(diff) : '✓ 0.00'}</b>` : ''}
       </div>
+      <label class="check muted" style="margin-top:8px"><input type="checkbox" data-action="q-flag" data-q="${qn}" data-field="skipped"> Not required this quarter</label>
     </div>`;
   });
   const total941 = quarters.reduce((a, r) => (r.wages_941 == null || a == null ? null : a + r.wages_941), 0);
-  qhtml += `<div class="q-cell ${w3Overdue(y, py) ? 'od' : ''}">
+  qhtml += !w3Applies(setup, clientId, y) ? `<div class="q-cell na"><h4>Year-end <span style="font-weight:400">not required</span></h4><div>No payroll quarters in ${y}.</div></div></div>` : `<div class="q-cell ${w3Overdue(y, py) ? 'od' : ''}">
       <h4>Year-end <span class="muted" style="font-weight:400">due Jan 31 ${y + 1}</span></h4>
       <label class="check"><input type="checkbox" data-action="y-flag" data-field="w3" ${py.w3 ? 'checked' : ''}> W-3 received</label>
       <label class="check"><input type="checkbox" data-action="y-flag" data-field="w3_tied" ${py.w3_tied ? 'checked' : ''}> <b>W-3 ties to 941s</b></label>
@@ -1876,6 +1935,7 @@ function clientHTML(clientId) {
       <div>
         <h2>${esc(c.name)} ${c.archived ? '<span class="pill plain">Archived</span>' : ''}</h2>
         ${c.notes ? `<div class="client-notes">${esc(c.notes)}</div>` : ''}
+        ${c.start_ym ? `<div class="client-notes">Tracking starts ${esc(fmtYM(c.start_ym))}</div>` : ''}
         <div style="margin-top:10px">${progressHTML(s, 'lg')}</div>
         <div class="legend">${STATUSES.map(st => `<span><i class="st-${st.v}"></i>${esc(st.label)}</span>`).join('')}<span><i style="box-shadow:0 0 0 2px var(--danger)"></i>Overdue</span></div>
       </div>
@@ -2086,6 +2146,8 @@ function clientModal(clientId = null) {
     body: `
       <div class="field"><label>Client / business name</label><input class="input" id="fName" value="${esc(c.name)}" placeholder="e.g. Stark Industries"></div>
       <div class="field"><label>Notes <span style="font-weight:400">(optional)</span></label><textarea class="input" id="fNotes" placeholder="Contact, how statements arrive, fiscal year, etc.">${esc(c.notes)}</textarea></div>
+      <div class="field"><label>Tracking starts <span style="font-weight:400">(optional)</span></label><input type="month" class="input" id="fStart" value="${esc(c.start_ym || '')}" style="max-width:220px">
+        <div class="hint">For a business that started mid-year: nothing before this month is expected — no statements, payroll weeks or quarterly filings.</div></div>
       ${isNew ? `
         <div class="field">
           <label>Accounts to track</label>
@@ -2107,6 +2169,7 @@ function clientModal(clientId = null) {
 function saveClientFromModal(clientId) {
   const name = $('fName').value.trim();
   const notes = $('fNotes').value.trim();
+  const startYm = $('fStart').value || null;
   if (!name) { $('fName').focus(); return toast('Please enter a name.'); }
   const dupe = one('SELECT id FROM clients WHERE name = ? COLLATE NOCASE AND id != ?', [name, clientId || 0]);
   if (dupe && !confirm(`A client named "${name}" already exists. Create another with the same name?`)) return;
@@ -2116,7 +2179,7 @@ function saveClientFromModal(clientId) {
     const cp = { ...clientReportPrefs(c), contact: $('fContact').value.trim(), template: $('fTpl').value };
     closeModal();
     mutate(`Edit client "${name}"`, () => {
-      run('UPDATE clients SET name = ?, notes = ?, archived = ? WHERE id = ?', [name, notes, archived, clientId]);
+      run('UPDATE clients SET name = ?, notes = ?, archived = ?, start_ym = ? WHERE id = ?', [name, notes, archived, startYm, clientId]);
       setSetting(`client_report:${c.uuid}`, JSON.stringify(cp));
     });
     return;
@@ -2129,7 +2192,7 @@ function saveClientFromModal(clientId) {
   let newId;
   closeModal();
   mutate(`Create client "${name}"`, () => {
-    newId = insertClient({ name, notes });
+    newId = insertClient({ name, notes, start_ym: startYm });
     accounts.forEach(a => insertAccount({ ...a, client_id: newId }));
   });
   if (newId) { ui.clientId = newId; render(); if (wantsPayroll) payrollSetupModal(newId); }
@@ -2235,7 +2298,8 @@ function monthModal(accId, m) {
       <div class="hint" style="margin-top:-6px;margin-bottom:12px">Use ( ) or - for negatives.${liabNote}</div>
       <div class="kv" id="mSummary"></div>
       <div class="field" style="margin-top:14px"><label>Notes</label><textarea class="input" id="mNote" placeholder="Anything to remember about this month">${esc(p.note)}</textarea></div>
-      <label class="check"><input type="checkbox" id="mRec" ${p.reconciled ? 'checked' : ''}> Reconciled ${p.reconciled_on ? `<span class="muted">(on ${esc(p.reconciled_on)})</span>` : ''}</label>`,
+      <label class="check"><input type="checkbox" id="mRec" ${p.reconciled ? 'checked' : ''}> Reconciled ${p.reconciled_on ? `<span class="muted">(on ${esc(p.reconciled_on)})</span>` : ''}</label>
+      <label class="check"><input type="checkbox" id="mSkip" ${p.skipped ? 'checked' : ''}> <b>No activity this month</b> <span class="muted">— leave it out of progress, reports and overdue flags</span></label>`,
     footer: `${m > 0 && isActiveMonth(acc, y, m - 1) ? `<button class="btn ghost" data-action="month-nav" data-acc="${accId}" data-m="${m - 1}" title="Save and go to ${MONTHS[m - 1]}">‹ ${MONTHS[m - 1]}</button>` : ''}
       ${m < 11 && isActiveMonth(acc, y, m + 1) ? `<button class="btn ghost" data-action="month-nav" data-acc="${accId}" data-m="${m + 1}" title="Save and go to ${MONTHS[m + 1]}">${MONTHS[m + 1]} ›</button>` : ''}
       <span class="spacer"></span>
@@ -2269,7 +2333,7 @@ function saveMonthFromModal(accId, m, thenOpen = null) {
   const begin = parseMoney($('mBegin').value), end = parseMoney($('mEnd').value);
   const glb = $('mGlBal') ? parseMoney($('mGlBal').value) : null;
   if ([begin, end, glb].some(Number.isNaN)) return toast('One of the amounts isn’t a valid number.');
-  const patch = { stmt_status: $('mStmt').value, begin_bal: begin, end_bal: end, note: $('mNote').value.trim(), reconciled: $('mRec').checked ? 1 : 0 };
+  const patch = { stmt_status: $('mStmt').value, begin_bal: begin, end_bal: end, note: $('mNote').value.trim(), reconciled: $('mRec').checked ? 1 : 0, skipped: $('mSkip').checked ? 1 : 0 };
   if (acc.has_gl) { patch.gl_status = $('mGl').value; patch.gl_bal = glb; }
   const cur = getPeriod(accId, ui.year, m);
   const changed = Object.keys(patch).some(k => (cur[k] || null) !== (patch[k] || null));
@@ -2287,6 +2351,10 @@ function fillModal(accId) {
   openModal({
     title: `Bulk update · ${a.name}`,
     body: `
+      <div class="field"><label>What to do</label><select class="input" id="bMode">
+        <option value="status">Update statuses</option>
+        <option value="skip">Mark as no activity (skip these months)</option>
+        <option value="unskip">Track these months again (undo “no activity”)</option></select></div>
       <div class="row2">
         <div class="field"><label>From</label><select class="input" id="bFrom">${MONTHS_LONG.map((mn, i) => `<option value="${i}">${mn} ${ui.year}</option>`).join('')}</select></div>
         <div class="field"><label>Through</label><select class="input" id="bTo">${MONTHS_LONG.map((mn, i) => `<option value="${i}" ${i === def ? 'selected' : ''}>${mn} ${ui.year}</option>`).join('')}</select></div>
@@ -2295,9 +2363,16 @@ function fillModal(accId) {
         <div class="field"><label><input type="checkbox" id="bStmtOn" checked> Statement →</label><select class="input" id="bStmt">${opts('entered')}</select></div>
         ${a.has_gl ? `<div class="field"><label><input type="checkbox" id="bGlOn" checked> General Ledger →</label><select class="input" id="bGl">${opts('entered')}</select></div>` : '<div></div>'}
       </div>
-      <label class="check"><input type="checkbox" id="bRec"> Also mark these months reconciled</label>
-      <label class="check"><input type="checkbox" id="bUpOnly" checked> Only move statuses forward (never downgrade a month)</label>
-      <div class="hint">Months when the account isn't open are skipped.</div>`,
+      <div id="bStatusOpts">
+        <label class="check"><input type="checkbox" id="bRec"> Also mark these months reconciled</label>
+        <label class="check"><input type="checkbox" id="bUpOnly" checked> Only move statuses forward (never downgrade a month)</label>
+      </div>
+      <div class="hint">Months when the account isn't open are left alone. For a business that started mid-year, set <b>Tracking starts</b> on the client instead (✏️ Edit client).</div>`,
+    onMount: root => {
+      const mode = root.querySelector('#bMode');
+      const sync = () => root.querySelectorAll('#bStatusOpts, #bStmtOn, #bStmt, #bGlOn, #bGl').forEach(el => { (el.closest('.field') || el).style.opacity = mode.value === 'status' ? '' : '.4'; });
+      mode.addEventListener('change', sync); sync();
+    },
     footer: `<button class="btn" data-action="modal-close">Cancel</button><button class="btn primary" data-action="fill-apply" data-acc="${accId}">Apply</button>`
   });
 }
@@ -2308,11 +2383,18 @@ function applyFill(accId) {
   const stmtOn = $('bStmtOn').checked, glOn = !!a.has_gl && $('bGlOn').checked;
   const stmt = $('bStmt').value, gl = a.has_gl ? $('bGl').value : null, rec = $('bRec').checked, upOnly = $('bUpOnly').checked;
   const map = periodMap(ui.year, a.client_id);
+  const mode = $('bMode').value;
   closeModal();
+  if (mode !== 'status') {
+    return mutate(`${a.name} ${MONTHS[from]}–${MONTHS[to]}: ${mode === 'skip' ? 'no activity' : 'tracked again'}`, () => {
+      for (let m = from; m <= to; m++) if (isActiveMonth(a, ui.year, m)) setPeriod(accId, ui.year, m, { skipped: mode === 'skip' ? 1 : 0 });
+    });
+  }
   mutate(`Bulk update ${a.name} (${MONTHS[from]}–${MONTHS[to]})`, () => {
     for (let m = from; m <= to; m++) {
       if (!isActiveMonth(a, ui.year, m)) continue;
       const p = getP(map, accId, m);
+      if (p.skipped) continue;
       const patch = {};
       if (stmtOn && (!upOnly || STATUS_RANK[stmt] > STATUS_RANK[p.stmt_status])) patch.stmt_status = stmt;
       if (glOn && (!upOnly || STATUS_RANK[gl] > STATUS_RANK[p.gl_status])) patch.gl_status = gl;
@@ -2702,7 +2784,8 @@ function applyPayBulk(clientId) {
   if (a > b) [a, b] = [b, a];
   const status = $('pbStatus').value, up = $('pbUp').checked;
   const map = payRunMap(clientId, ui.year);
-  const targets = payDates(setup, ui.year).filter(d => d >= a && d <= b && (!up || PAY_RANK[status] > PAY_RANK[runStatus(map, d)]));
+  const targets = payDates(setup, ui.year).filter(d => d >= a && d <= b && (!up
+    || (status === 'none' ? runStatus(map, d) === 'not_received' : PAY_RANK[status] > PAY_RANK[runStatus(map, d)] && runStatus(map, d) !== 'none')));
   closeModal();
   if (!targets.length) return toast('Nothing to change.');
   mutate(`Payroll: ${targets.length} week(s) → ${payLabel(status)}`, () => targets.forEach(d => setRun(clientId, d, status)));
@@ -2809,6 +2892,7 @@ function collectReport(cid, year, through) {
     for (let m = 0; m < 12; m++) {
       if (!isActiveMonth(acc, year, m)) continue;
       const p = getP(map, acc.id, m);
+      if (p.skipped) continue;
       if (prev && !prev.p.reconciled && p.reconciled) r.problems.push(`${MONTHS[m]} is marked reconciled but ${MONTHS[prev.m]} is not`);
       prev = { m, p };
       const b = balanceInfo(acc, map, m);
@@ -2852,14 +2936,14 @@ function collectReport(cid, year, through) {
     });
     getQuarters(cid, year).forEach((r, i) => {
       const qn = i + 1;
-      if (!quarterEnded(year, qn) || (qn * 3 - 1) > through) return;
+      if (!quarterEnded(year, qn) || (qn * 3 - 1) > through || !quarterApplies(setup, year, qn, r)) return;
       const od = quarterOverdue(year, qn, r);
       if (!r.f941) payroll.forms.push({ label: `Form 941 for Q${qn} ${year}`, overdue: od });
       if (!r.nys45) payroll.forms.push({ label: `Form NYS-45 for Q${qn} ${year}`, overdue: od });
       if (!r.tied) payroll.todo.push(`Q${qn} payroll not tied out to the 941 / NYS-45`);
       if (r.wages_941 != null && r.wages_books != null && r.wages_941 !== r.wages_books) payroll.problems.push(`Q${qn} wages: 941 ${fmtMoney(r.wages_941)} vs books ${fmtMoney(r.wages_books)}`);
     });
-    if (year < TODAY_YEAR) {
+    if (year < TODAY_YEAR && w3Applies(setup, cid, year)) {
       const py = getPayYear(cid, year);
       if (!py.w3) payroll.forms.push({ label: `Form W-3 for ${year}`, overdue: w3Overdue(year, py) });
       else if (!py.w3_tied) payroll.todo.push(`W-3 not tied to the 941s yet`);
@@ -3074,7 +3158,7 @@ function parseCSV(text) {
 
 const ACCOUNT_COLS = ['Client UUID', 'Client', 'Client Notes', 'Archived', 'Account UUID', 'Account', 'Account Type', 'Account Group', 'Institution', 'Last4',
   'Has GL', 'Tracks Checks', 'Closing Day', 'Arrival Days', 'Opened', 'Closed', 'Year', 'Month', 'Statement Status', 'GL Status',
-  'Reconciled', 'Reconciled On', 'Beginning Balance', 'Ending Balance', 'GL Balance', 'Note'];
+  'Reconciled', 'Reconciled On', 'Beginning Balance', 'Ending Balance', 'GL Balance', 'Note', 'No Activity', 'Client Start'];
 function buildAccountsCSV() {
   const lines = [csvLine(ACCOUNT_COLS)];
   const years = new Set(q('SELECT DISTINCT year FROM periods').map(r => r.year)); years.add(ui.year);
@@ -3082,7 +3166,7 @@ function buildAccountsCSV() {
   getClients(true).forEach(c => {
     const accs = getAccounts(c.id);
     const cpart = [c.uuid, c.name, c.notes, c.archived ? 'yes' : 'no'];
-    if (!accs.length) { lines.push(csvLine([...cpart, ...Array(ACCOUNT_COLS.length - 4).fill('')])); return; }
+    if (!accs.length) { lines.push(csvLine([...cpart, ...Array(ACCOUNT_COLS.length - 5).fill(''), c.start_ym || ''])); return; }
     yearList.forEach(y => {
       const map = periodMap(y, c.id);
       accs.forEach(a => {
@@ -3091,7 +3175,7 @@ function buildAccountsCSV() {
           const p = getP(map, a.id, m);
           lines.push(csvLine([...cpart, a.uuid, a.name, a.type, groupOf(a.type), a.institution, a.last4, a.has_gl ? 'yes' : 'no', a.has_checks ? 'yes' : 'no',
             a.closing_day || '', a.arrival_days, a.opened || '', a.closed || '', y, MONTHS[m], p.stmt_status, a.has_gl ? p.gl_status : '',
-            p.reconciled ? 'yes' : 'no', p.reconciled_on || '', moneyCSV(p.begin_bal), moneyCSV(p.end_bal), moneyCSV(p.gl_bal), p.note]));
+            p.reconciled ? 'yes' : 'no', p.reconciled_on || '', moneyCSV(p.begin_bal), moneyCSV(p.end_bal), moneyCSV(p.gl_bal), p.note, p.skipped ? 'yes' : 'no', c.start_ym || '']));
         }
       });
     });
@@ -3109,7 +3193,7 @@ function buildChecksCSV() {
   });
   return lines.join('\r\n');
 }
-const PAY_COLS = ['Client UUID', 'Client', 'Record', 'Year', 'Period', 'Status', '941 Received', 'NYS-45 Received', 'Tied', '941 Wages', 'Books Wages', 'W-3 Received', 'W-3 Tied', 'Service', 'Pay Weekday', 'Note'];
+const PAY_COLS = ['Client UUID', 'Client', 'Record', 'Year', 'Period', 'Status', '941 Received', 'NYS-45 Received', 'Tied', '941 Wages', 'Books Wages', 'W-3 Received', 'W-3 Tied', 'Service', 'Pay Weekday', 'Note', 'Not Required'];
 function buildPayrollCSV() {
   const lines = [csvLine(PAY_COLS)];
   q('SELECT p.*, c.uuid AS cu, c.name AS cn FROM payroll_setup p JOIN clients c ON c.id = p.client_id ORDER BY c.name').forEach(s => {
@@ -3121,7 +3205,7 @@ function buildPayrollCSV() {
     [...years].sort().forEach(y => {
       const map = payRunMap(s.client_id, y);
       payDates(s, y).forEach(d => lines.push(csvLine([...base, 'Week', y, d, runStatus(map, d), '', '', '', '', '', '', '', '', '', (map.get(d) || {}).note || ''])));
-      getQuarters(s.client_id, y).forEach(r => lines.push(csvLine([...base, 'Quarter', y, `Q${r.quarter}`, '', r.f941 ? 'yes' : 'no', r.nys45 ? 'yes' : 'no', r.tied ? 'yes' : 'no', moneyCSV(r.wages_941), moneyCSV(r.wages_books), '', '', '', '', r.note])));
+      getQuarters(s.client_id, y).forEach(r => lines.push(csvLine([...base, 'Quarter', y, `Q${r.quarter}`, '', r.f941 ? 'yes' : 'no', r.nys45 ? 'yes' : 'no', r.tied ? 'yes' : 'no', moneyCSV(r.wages_941), moneyCSV(r.wages_books), '', '', '', '', r.note, r.skipped ? 'yes' : 'no'])));
       const py = getPayYear(s.client_id, y);
       lines.push(csvLine([...base, 'Year', y, String(y), '', '', '', '', '', '', py.w3 ? 'yes' : 'no', py.w3_tied ? 'yes' : 'no', '', '', py.note]));
     });
@@ -3239,7 +3323,7 @@ function importCSVText(text) {
           const qn = parseInt(g(r, 'period').replace(/\D/g, ''), 10);
           if (!(qn >= 1 && qn <= 4) || !y) return;
           setQuarter(cid, y, qn, { f941: truthy(g(r, '941 received')), nys45: truthy(g(r, 'nys-45 received')), tied: truthy(g(r, 'tied')),
-            wages_941: moneyIn(g(r, '941 wages')), wages_books: moneyIn(g(r, 'books wages')), note: g(r, 'note') });
+            wages_941: moneyIn(g(r, '941 wages')), wages_books: moneyIn(g(r, 'books wages')), note: g(r, 'note'), skipped: truthy(g(r, 'not required')) ? 1 : 0 });
         } else if (rec === 'year' && y) setPayYear(cid, y, { w3: truthy(g(r, 'w-3 received')), w3_tied: truthy(g(r, 'w-3 tied')), note: g(r, 'note') });
         else return;
         count++;
@@ -3252,6 +3336,7 @@ function importCSVText(text) {
       rows.slice(1).forEach(r => {
         const cname = g(r, 'client'); if (!cname && !g(r, 'client uuid')) return;
         const cid = findOrCreateClient(g(r, 'client uuid'), cname, g(r, 'client notes'), truthy(g(r, 'archived')) ? 1 : 0);
+        if (idx('client start') >= 0) { run('UPDATE clients SET start_ym = ? WHERE id = ?', [/^\d{4}-\d{2}$/.test(g(r, 'client start')) ? g(r, 'client start') : null, cid]); resetCaches(); }
         const aname = g(r, 'account'); if (!aname && !g(r, 'account uuid')) return;
         const cd = g(r, 'closing day');
         const accId = findOrCreateAccount(cid, g(r, 'account uuid'), aname, {
@@ -3267,6 +3352,7 @@ function importCSVText(text) {
         if (!y || !(m >= 0 && m < 12)) return;
         const patch = { stmt_status: normStatus(g(r, 'statement status')), reconciled: truthy(g(r, 'reconciled')) ? 1 : 0, reconciled_on: g(r, 'reconciled on') || null };
         if (g(r, 'gl status')) patch.gl_status = normStatus(g(r, 'gl status'));
+        if (idx('no activity') >= 0) patch.skipped = truthy(g(r, 'no activity')) ? 1 : 0;
         if (idx('ending balance') >= 0) Object.assign(patch, { begin_bal: moneyIn(g(r, 'beginning balance')), end_bal: moneyIn(g(r, 'ending balance')), gl_bal: moneyIn(g(r, 'gl balance')), note: g(r, 'note') });
         setPeriod(accId, y, m, patch);
         if (patch.reconciled && patch.reconciled_on) run('UPDATE periods SET reconciled_on = ? WHERE account_id = ? AND year = ? AND month = ?', [patch.reconciled_on, accId, y, m]);
@@ -3440,6 +3526,10 @@ async function handleAction(action, el, ev) {
       return mutate(`${p.reconciled ? 'Unmark' : 'Mark'} ${a.name} ${MONTHS[m]} reconciled`, () => setPeriod(accId, ui.year, m, { reconciled: p.reconciled ? 0 : 1 }));
     }
     case 'month': return monthModal(accId, +el.dataset.m);
+    case 'toggle-skip': {
+      const a = one('SELECT name FROM accounts WHERE id = ?', [accId]);
+      return mutate(`${a.name} ${MONTHS[+el.dataset.m]} tracked again`, () => setPeriod(accId, ui.year, +el.dataset.m, { skipped: 0 }));
+    }
     case 'month-save': return saveMonthFromModal(accId, +el.dataset.m);
     case 'month-nav': {
       const cur = +$('modalRoot').querySelector('[data-action="month-save"]').dataset.m;
