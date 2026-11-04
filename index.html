@@ -456,9 +456,22 @@
   .r2-none li { padding-left: 0; }
   .r2-click { cursor: pointer; border-radius: 3px; }
   .r2-click:hover { outline: 2px dashed var(--primary); outline-offset: 2px; }
-  .r2-x { position: absolute; right: -30px; top: 1px; border: 1px solid #ccc; background: #fff; color: #666; border-radius: 5px; font-size: 11px; line-height: 1; padding: 3px 5px; cursor: pointer; opacity: 0; }
+  .r2-list li:has(.r2-x) { padding-right: 34px; }
+  .r2-x { position: absolute; right: 0; top: 1px; z-index: 2; border: 1px solid #ccc; background: #fff; color: #666; border-radius: 5px; font-size: 11px; line-height: 1; padding: 3px 5px; cursor: pointer; opacity: 0; }
   .r2-list li:hover .r2-x { opacity: 1; }
   .r2-x:hover { color: var(--danger); border-color: var(--danger); }
+  @media (hover: none) { .r2-x { opacity: .75; } }
+  @media (max-width: 900px) {
+    .modal:has(.r2-wrap) .modal-footer { flex-wrap: wrap; justify-content: flex-end; }
+    .modal-overlay:has(.r2-wrap) { padding: 6px; }
+    .modal:has(.r2-wrap) { max-height: 98vh; }
+    .r2-wrap { grid-template-columns: 1fr; min-height: 0; }
+    .r2-left, .r2-right { max-height: none; overflow: visible; }
+    .r2-left { border-right: none; border-top: 1px solid var(--border); }
+    .r2-right { order: -1; padding: 8px; }
+    .r2-paper { padding: 22px 18px; }
+    .r2-2col { grid-template-columns: 1fr; }
+  }
   mark.r2-bad { background: #fde8e8; color: #9b1c1c; border-bottom: 2px wavy #dc2626; padding: 0 2px; }
   .r2-note { font-style: italic; }
   .r2-closing { margin-top: 20px; }
@@ -493,6 +506,7 @@
     .r2-wrap { display: block; margin: 0; }
     .r2-right { padding: 0; max-height: none; overflow: visible; background: none !important; }
     .r2-bar, .r2-excl, .r2-x, .r2-pop, mark.r2-bad { display: none !important; }
+    .r2-list li:has(.r2-x) { padding-right: 0; }
     .r2-paper { box-shadow: none; padding: 0; max-width: none; }
     .r2-click:hover { outline: none; }
     .r2-page { break-after: page; }
@@ -3601,7 +3615,10 @@ function r2PageHTML(page, values, { editable = true } = {}) {
   const F = (t, extra = {}) => r2Fill(t, { ...vars, ...extra }, values);
   const J = k => (editable ? ` data-r2jump="${k}"` : '');
   const block = k => {
-    const lines = F(values[k]).split('\n');
+    let lines = F(values[k]).split('\n');
+    // Recipient: no contact name means {contact} falls back to the client name, so drop the repeat and any empty lines
+    const plain = t => t.replace(/<[^>]*>/g, '').trim();
+    if (k === 'hdr.recipient') lines = lines.filter((l, i) => plain(l) && (i === 0 || plain(l) !== plain(lines[i - 1])));
     if (k === 'hdr.left' && lines.length) lines[0] = `<b>${lines[0]}</b>`;
     return `<div class="r2-click"${J(k)}>${lines.join('<br>')}</div>`;
   };
