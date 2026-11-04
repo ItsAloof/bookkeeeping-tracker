@@ -1,0 +1,2 @@
+# No third-party packages are required: app.py uses only the Python standard library.
+# Optional, for a sturdier server on a host:  pip install waitress  then  waitress-serve --port=8080 app:application

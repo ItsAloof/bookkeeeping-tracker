@@ -1,0 +1,39 @@
+# --- Client data: never commit -------------------------------------------
+# The tracker database, its backups and anything exported from it hold
+# client financial information.
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.db.tmp
+*.sqlite
+*.sqlite3
+backups/
+*.csv
+*.xlsx
+*.xls
+*.xlsm
+*.pdf
+
+# --- Secrets ---------------------------------------------------------------
+.env
+.env.*
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Editors / OS ----------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
