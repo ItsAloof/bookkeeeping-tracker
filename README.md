@@ -61,7 +61,52 @@ TRACKER_PASSWORD='choose-a-long-password' python app.py --host 0.0.0.0
 $env:TRACKER_PASSWORD='choose-a-long-password'; python app.py --host 0.0.0.0
 ```
 
-The sign-in is HTTP Basic auth, so outside your own network it must go over **HTTPS**. The hosting options below provide that.
+The sign-in is HTTP Basic auth, so outside your own network it must go over **HTTPS**. Tailscale Serve and the hosting options below provide that.
+
+## Keep it running and up to date
+
+`updater.py` runs the server, restarts it if it crashes, and installs new versions from GitHub automatically:
+
+```bash
+python updater.py            # takes the same options as app.py, e.g. --port 8000
+```
+
+Every 5 minutes it checks GitHub. When `main` has new commits, it waits until that commit's **CI checks have passed**, then runs `git pull --ff-only` and restarts the server. A broken push is never installed. It doesn't touch `data/` (git ignores it), and it won't update if you've edited tracked files locally.
+
+How it fits together:
+
+1. You push to `main`.
+2. GitHub Actions (`.github/workflows/ci.yml`) runs the tests on GitHub's machines.
+3. Your PC sees the passing commit, pulls it, and restarts.
+
+Your PC only *reads* from GitHub, so nothing needs to reach into your network. This repo is public, which is why it doesn't use a self-hosted GitHub Actions runner: on a public repo, that would let outside pull requests run code on the machine holding client data.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `UPDATE_INTERVAL` | `300` | Seconds between checks |
+| `UPDATE_BRANCH` | `main` | Branch to follow |
+| `UPDATE_REQUIRE_CI` | `1` | Set to `0` to install without waiting for CI |
+| `GITHUB_TOKEN` | *(none)* | Only needed to read CI results if the repo becomes private |
+
+**Start automatically on Windows:** `start-tracker.bat` runs the updater from the repo folder. In **Task Scheduler**:
+
+1. Choose **Create Basic Task** with trigger **When I log on** and action **Start a program**.
+2. Set the program to `start-tracker.bat` in your clone.
+3. Optional: to keep it running before you sign in, change the trigger to **At startup** and, in the task's **Properties**, tick **Run whether user is logged on or not**.
+
+To use a password, set `TRACKER_PASSWORD` as a user environment variable (**Settings → System → About → Advanced system settings → Environment Variables**). That keeps it out of the file.
+
+**Access from your other devices (optional):** with [Tailscale](https://tailscale.com/) installed on the PC and the devices, run `tailscale serve --bg 8000`. The tracker is then available at `https://<pc-name>.<tailnet>.ts.net` over an encrypted private connection, and the data stays on your PC. Set `TRACKER_PASSWORD` anyway: Serve forwards requests from the PC itself, so the server sees them as local.
+
+**Docker** isn't needed on a PC, since the server has no dependencies. It's useful on an always-on Linux box or NAS:
+
+```bash
+docker build -t tracker .
+docker run -d --restart unless-stopped -p 127.0.0.1:8000:8080 \
+  -v tracker-data:/data -e TRACKER_PASSWORD='long-password' tracker
+```
+
+With Docker, update by pulling and rebuilding the image (`git pull && docker build -t tracker . && docker rm -f <container>` then run again) instead of using `updater.py`.
 
 ## Hosting
 
@@ -158,7 +203,11 @@ Write to the database only while the server is stopped, or through the API, sinc
 
 ```
 app.py            Python server (standard library only; WSGI app = app:application)
+updater.py        Runs app.py, restarts it on crashes, installs CI-approved updates from GitHub
+start-tracker.bat Windows launcher for updater.py (for Task Scheduler)
 index.html        The tracker (single page; also works opened directly as a file)
+tests/            Server tests (python -m unittest discover -s tests)
+.github/workflows CI that runs the tests on every push
 Dockerfile        Container image for Fly.io or any Docker host
 requirements.txt  Empty on purpose (no dependencies)
 data/             Created at runtime: tracker.db, backups/, vendor/ (git-ignored)

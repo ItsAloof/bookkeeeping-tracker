@@ -1,0 +1,37 @@
+# Runs on GitHub's machines for every push and pull request.
+# updater.py only installs a new version on your PC after this workflow passes.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compile
+        run: python -m py_compile app.py updater.py
+      - name: Server tests
+        run: python -m unittest discover -s tests -v
+      - name: Check the page's JavaScript parses
+        run: |
+          python - <<'EOF'
+          import re, pathlib
+          html = pathlib.Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+          assert scripts, "no inline script found"
+          pathlib.Path("page.js").write_text(scripts[0], encoding="utf-8")
+          EOF
+          node --check page.js
