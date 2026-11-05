@@ -1009,12 +1009,16 @@ function refreshSaveStatus() {
     if (lastSaveError) setSaveStatus('err', 'Save failed — click to retry', String(lastSaveError));
     else if (pendingSave) setSaveStatus('saving', `Saving to ${fileHandle.name}…`);
     else setSaveStatus('ok', `Saved · ${fileHandle.name}`, 'Every change is written to this file automatically.');
+  } else if (storageMode === 'browser' && onWebPage()) {
+    setSaveStatus('warn', 'Offline · changes kept in this browser',
+      "The tracker server isn't reachable, so changes are only kept in this browser. You'll be offered to send them to the server when it's back.");
   } else if (storageMode === 'browser') {
     setSaveStatus('warn', 'Browser storage only — click to save as a file',
       'Your data is only cached in this browser. Click to save it as a .db file you control.');
   } else setSaveStatus('', 'No database open');
 }
 function scheduleSave() {
+  if (storageMode === 'browser') offlineEdits = true;
   pendingSave = true;
   refreshSaveStatus();
   clearTimeout(saveTimer);
@@ -1116,6 +1120,7 @@ async function applyRemote({ conflict }) {
     const keepUndo = undoStack.slice();
     const clientBefore = ui.clientId;
     openDbFromBytes(bytes);                       // clears undo; restored below
+    idbSet('dbCache', bytes).catch(() => {});      // keep the browser's fallback copy current
     undoStack.push(...keepUndo, { label: conflict ? 'Your change (saved at the same time as another window)' : 'Changes from another window or device', bytes: mine });
     while (undoStack.length > UNDO_LIMIT) undoStack.shift();
     updateUndoBtn();
@@ -1137,6 +1142,7 @@ async function serverStart() {
   const bytes = await serverLoad();
   openDbFromBytes(bytes);          // null = brand-new empty database
   storageMode = 'server';
+  if (bytes) idbSet('dbCache', bytes).catch(() => {});   // fallback copy if the server is ever unreachable
   fileHandle = null;
   lastSaveError = null;
   if (!bytes) { serverForceNext = true; await saveNow(); }
@@ -2167,7 +2173,61 @@ function setChrome(visible) {
   document.querySelectorAll('.topbar > *:not(h1):not(.spacer):not(.menu-wrap)').forEach(el => el.classList.toggle('hidden', !visible));
   if (visible) $('thisYearBtn').classList.toggle('hidden', ui.year === TODAY_YEAR);
 }
+const onWebPage = () => /^https?:$/.test(location.protocol);
+const SERVER_TRIES = 6;
+let serverDownTimer = null, offlineWatchTimer = null, offlineEdits = false;
+/** The page came from the tracker server but the server isn't answering. Wait for it rather than
+    quietly switching to an older copy in this browser whose changes would never reach the server. */
+async function showServerDown() {
+  setChrome(false);
+  const cache = await idbGet('dbCache');
+  $('main').innerHTML = `<div class="welcome">
+    <h2>Can't reach the tracker server</h2>
+    <div class="muted">The page loaded, but the server isn't answering yet. This usually clears up on its own in a few seconds:
+      the connection may still be warming up, or the PC may be waking up or restarting after an update.</div>
+    <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" data-action="server-retry">Try again now</button>
+      <span class="muted" id="serverDownNote">Trying again automatically…</span></div>
+    <details style="margin-top:22px"><summary class="muted" style="cursor:pointer">Other options</summary>
+      <div class="choices" style="margin-top:10px">
+      ${cache ? `<button class="choice" data-action="db-cache-offline"><span class="ic">🗄️</span><span><b>Work on the copy saved in this browser</b><small>It may be out of date. Changes stay in this browser until the server is back and you choose to send them.</small></span></button>` : ''}
+      <button class="choice" data-action="db-other"><span class="ic">📂</span><span><b>Open or create a database file instead</b><small>For using the tracker without the server.</small></span></button>
+      </div></details></div>`;
+  setSaveStatus('err', 'Server not reachable', 'The tracker server is not answering.');
+  clearInterval(serverDownTimer);
+  let tries = 0;
+  serverDownTimer = setInterval(async () => {
+    tries++;
+    if (await serverInfo()) { clearInterval(serverDownTimer); location.reload(); }
+    else if ($('serverDownNote')) $('serverDownNote').textContent = `Still trying… (${tries} attempt${tries > 1 ? 's' : ''})`;
+  }, 5000);
+}
+async function serverRetryNow() {
+  if ($('serverDownNote')) $('serverDownNote').textContent = 'Checking…';
+  if (await serverInfo()) { clearInterval(serverDownTimer); return location.reload(); }
+  if ($('serverDownNote')) $('serverDownNote').textContent = 'Still not answering — trying again automatically…';
+}
+/** Working on the browser copy of a server page: watch for the server and offer to sync up. */
+function watchForServer() {
+  clearInterval(serverDownTimer);
+  clearInterval(offlineWatchTimer);
+  offlineWatchTimer = setInterval(async () => {
+    if (storageMode !== 'browser' || !(await serverInfo())) return;
+    clearInterval(offlineWatchTimer);
+    $('bannerRoot').innerHTML = `<div class="banner" id="serverBackBanner"><b>The tracker server is reachable again.</b>
+      ${offlineEdits ? `You made changes in this browser's copy.
+        <button class="btn sm primary" data-action="offline-send">Send this browser's copy to the server</button>
+        <button class="btn sm" data-action="offline-discard">Discard them and load the server copy</button>`
+      : `<button class="btn sm primary" data-action="offline-discard">Load the server copy</button>`}</div>`;
+  }, 8000);
+}
+async function offlineSend() {
+  await serverReplace(exportBytes(), 'the copy from this browser');
+  if (storageMode === 'server') { offlineEdits = false; $('bannerRoot').innerHTML = ''; startServerSync(); }
+}
+
 async function showWelcome(errorMsg = '') {
+  clearInterval(serverDownTimer);
   setChrome(false);
   const handle = await idbGet('fileHandle');
   const cache = await idbGet('dbCache');
@@ -2261,7 +2321,16 @@ async function boot() {
   }
   const status = msg => { $('main').innerHTML = `<div class="empty">${esc(msg)}</div>`; };
   status('Checking for a tracker server…');
-  if (await serverInfo()) {
+  // Served by the tracker server: a first request through Funnel can be reset or slow while the
+  // connection warms up, so keep trying for a bit instead of falling back to browser storage.
+  let info = await serverInfo();
+  for (let i = 2; !info && onWebPage() && i <= SERVER_TRIES; i++) {
+    status(`Connecting to the tracker server… (try ${i} of ${SERVER_TRIES})`);
+    await new Promise(r => setTimeout(r, 2500));
+    info = await serverInfo();
+  }
+  if (!info && onWebPage()) return showServerDown();
+  if (info) {
     try { status('Loading database from the server…'); return await serverStart(); }
     catch (e) {
       $('main').innerHTML = `<div class="welcome"><h2>Couldn't load the database from the server</h2><pre class="muted" style="white-space:pre-wrap">${esc(e.message || String(e))}</pre><p class="muted">Reload the page to try again.</p></div>`;
@@ -4514,6 +4583,11 @@ async function handleAction(action, el, ev) {
     case 'db-open': return actOpenDb();
     case 'db-reconnect': return actReconnect();
     case 'db-cache': return actUseCache();
+    case 'db-cache-offline': clearInterval(serverDownTimer); await actUseCache(); return watchForServer();
+    case 'db-other': return showWelcome();
+    case 'server-retry': return serverRetryNow();
+    case 'offline-send': return offlineSend();
+    case 'offline-discard': if (!offlineEdits || confirm('Drop the changes made in this browser and load the server copy?')) { offlineEdits = false; location.reload(); } return;
     case 'db-copy': return db ? actDownloadCopy() : toast('No database open.');
     case 'csv-export': return db ? exportCSV(el.dataset.kind) : toast('Open a database first.');
     case 'csv-import': return db ? $('csvFileInput').click() : toast('Open a database first.');
