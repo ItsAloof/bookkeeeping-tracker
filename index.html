@@ -1175,10 +1175,21 @@ function startServerSync() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkRemote(); });
   window.addEventListener('focus', checkRemote);
 }
+let checkInFlight = false, firstMissAt = 0;
 async function checkRemote() {
-  if (storageMode !== 'server' || serverOffline || document.hidden || syncBusy || serverSaving || pendingSave) return;
-  const info = await serverInfo();
-  if (!info) { if (++syncMisses >= 2) goOffline(); return; }   // two misses in a row (~8s): show it before an edit is lost
+  // Coming back to the tab fires 'visibilitychange' and 'focus' together: run one check, not two
+  if (checkInFlight || storageMode !== 'server' || serverOffline || document.hidden || syncBusy || serverSaving || pendingSave) return;
+  checkInFlight = true;
+  let info;
+  try { info = await serverInfo(); } finally { checkInFlight = false; }
+  if (!info) {
+    // The first request after a quiet spell can be reset (Funnel warming up). Only call it offline after
+    // 3 separate misses spread over at least 6 seconds; a save that fails still goes offline right away.
+    if (!syncMisses) firstMissAt = Date.now();
+    if (++syncMisses >= 3 && Date.now() - firstMissAt >= 6000) goOffline();
+    else setTimeout(checkRemote, 2000);
+    return;
+  }
   syncMisses = 0;
   if (info.page && serverPageVersion && info.page !== serverPageVersion) showUpdateBanner();
   if (info.etag && normTag(info.etag) !== serverEtag) await applyRemote({ conflict: false });
