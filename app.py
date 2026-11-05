@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import base64
 import datetime as dt
+import gzip
 import hashlib
 import hmac
 import ipaddress
@@ -37,6 +38,7 @@ import sys
 import threading
 import time
 import urllib.request
+import zlib
 from pathlib import Path
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
@@ -213,6 +215,29 @@ SECURITY_HEADERS = [
 MIME = {".js": "text/javascript; charset=utf-8", ".wasm": "application/wasm", ".html": "text/html; charset=utf-8"}
 
 
+_gz_cache: dict = {}
+
+
+def gzipped(data: bytes, tag: str) -> bytes:
+    """Database files shrink a lot when compressed; keep the last one so repeated loads don't redo it."""
+    if tag not in _gz_cache:
+        _gz_cache.clear()
+        _gz_cache[tag] = gzip.compress(data, compresslevel=6)
+    return _gz_cache[tag]
+
+
+def gunzip_limited(data: bytes, limit: int) -> bytes | None:
+    """Decompress a gzip upload, refusing anything that would expand past `limit` (zip bombs)."""
+    d = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    try:
+        out = d.decompress(data, limit + 1)
+    except zlib.error:
+        return None
+    if len(out) > limit or d.unconsumed_tail or not d.eof:
+        return None
+    return out
+
+
 def respond(start_response, status: str, body: bytes = b"", ctype: str = "text/plain; charset=utf-8", headers=None):
     hdrs = [("Content-Type", ctype), ("Content-Length", str(len(body)))] + SECURITY_HEADERS + (headers or [])
     start_response(status, hdrs)
@@ -267,9 +292,13 @@ def application(environ, start_response):
             data = current_db()
         if data is None:
             return json_response(start_response, "404 Not Found", {"error": "No database on the server yet."})
-        headers = [("ETag", etag_of(data)), ("Cache-Control", "no-store")]
+        tag = etag_of(data)
+        headers = [("ETag", tag), ("Cache-Control", "no-store"), ("Vary", "Accept-Encoding")]
         if "download" in environ.get("QUERY_STRING", ""):
             headers.append(("Content-Disposition", f'attachment; filename="tracker_{dt.date.today()}.db"'))
+        elif method == "GET" and "gzip" in environ.get("HTTP_ACCEPT_ENCODING", ""):
+            headers.append(("Content-Encoding", "gzip"))   # the browser unpacks this by itself
+            data = gzipped(data, tag)
         return respond(start_response, "200 OK", b"" if method == "HEAD" else data, "application/x-sqlite3", headers)
 
     if path == "/api/db" and method == "PUT":
@@ -282,6 +311,13 @@ def application(environ, start_response):
         data = environ["wsgi.input"].read(length)
         if len(data) != length:
             return json_response(start_response, "400 Bad Request", {"error": "Upload was cut off."})
+        enc = environ.get("HTTP_CONTENT_ENCODING", "").strip().lower()
+        if enc == "gzip":
+            data = gunzip_limited(data, MAX_DB_BYTES)
+            if data is None:
+                return json_response(start_response, "413 Payload Too Large", {"error": "Compressed upload is damaged or too large."})
+        elif enc not in ("", "identity"):
+            return json_response(start_response, "415 Unsupported Media Type", {"error": f"Unsupported Content-Encoding: {enc}"})
         if err := validate_sqlite(data):
             return json_response(start_response, "422 Unprocessable Entity", {"error": err})
         if_match = norm_tag(environ.get("HTTP_IF_MATCH", ""))

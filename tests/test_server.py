@@ -122,6 +122,22 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(self.req("GET", "/api/info")[2])["etag"], json.loads(body)["etag"])
 
+    def test_07_gzip_both_ways(self):
+        import gzip
+        raw = tracker_db(self.dir / "a.db", 300)
+        status, _, body = self.req("PUT", "/api/db", gzip.compress(raw), {"If-Match": "*", "Content-Encoding": "gzip"})
+        self.assertEqual(status, 200)
+        tag = json.loads(body)["etag"]
+        status, headers, body = self.req("GET", "/api/db", headers={"Accept-Encoding": "gzip"})
+        self.assertEqual((status, headers["Content-Encoding"], headers["ETag"]), (200, "gzip", tag))
+        self.assertLess(len(body), len(raw))
+        self.assertEqual(gzip.decompress(body), raw)
+        self.assertEqual(self.req("GET", "/api/db")[2], raw)                        # plain for clients that don't ask
+        bomb = gzip.compress(b"\0" * (65 * 1024 * 1024))                            # expands past the 64 MB limit
+        self.assertEqual(self.req("PUT", "/api/db", bomb, {"If-Match": "*", "Content-Encoding": "gzip"})[0], 413)
+        self.assertEqual(self.req("PUT", "/api/db", b"junk", {"If-Match": "*", "Content-Encoding": "gzip"})[0], 413)
+        self.assertEqual(self.req("PUT", "/api/db", raw, {"If-Match": "*", "Content-Encoding": "br"})[0], 415)
+
     def test_06_vendor_paths_are_restricted(self):
         self.assertEqual(self.req("GET", "/vendor/../tracker.db")[0], 404)
         self.assertEqual(self.req("GET", "/vendor/anything.js")[0], 404)

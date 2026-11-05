@@ -1073,13 +1073,22 @@ async function serverLoad() {
   serverEtag = normTag(r.headers.get('ETag'));
   return new Uint8Array(await r.arrayBuffer());
 }
+/** gzip in the browser (Chrome 80+, Firefox 113+); null where it isn't available, and we send it as-is. */
+async function gzipBytes(bytes) {
+  if (typeof CompressionStream === 'undefined') return null;
+  try { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer()); }
+  catch (e) { console.warn('gzip failed, sending uncompressed', e); return null; }
+}
 async function serverSave(bytes) {
   if (lastSaveError === CONFLICT && !serverForceNext) return;   // don't overwrite someone else's changes
   serverSaving = true;
   try {
-    const r = await withTimeout(fetch('api/db', {
-      method: 'PUT', body: bytes, headers: { 'Content-Type': 'application/x-sqlite3', 'If-Match': serverForceNext || !serverEtag ? '*' : serverEtag }
+    const put = (body, gz) => withTimeout(fetch('api/db', {
+      method: 'PUT', body, headers: { 'Content-Type': 'application/x-sqlite3', 'If-Match': serverForceNext || !serverEtag ? '*' : serverEtag, ...(gz ? { 'Content-Encoding': 'gzip' } : {}) }
     }), 30000, 'saving to server');
+    const packed = await gzipBytes(bytes);              // database files compress to a fraction of their size
+    let r = await put(packed || bytes, !!packed);
+    if (packed && (r.status === 415 || r.status === 422)) r = await put(bytes, false);   // a server that predates compression
     if ([502, 503, 504].includes(r.status)) throw Object.assign(new Error('server unreachable'), { offline: true });
     const j = await r.json().catch(() => ({}));
     if (r.status === 409) { lastSaveError = CONFLICT; const offline = sentOfflineChanges; setTimeout(() => applyRemote({ conflict: true, offline }), 0); return; }
