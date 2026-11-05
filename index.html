@@ -377,6 +377,10 @@
   .lbl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--muted); margin: 0 0 4px; }
   .r2-savebar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; }
   .r2-savebar .btn:disabled { opacity: .45; }
+  .r2-savebar .btn.save-solid:not(:disabled) { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .r2-savebar .btn.save-outline:not(:disabled) { background: var(--ok-weak); border-color: var(--ok); color: var(--ok); }
+  #r2SaveHint.dirty { color: var(--warn); font-weight: 650; }
+  .modal-header h2.r2-dirty::after { content: " ●"; color: var(--warn); font-size: .8em; }
   .r2-seg button { padding: 5px 9px; }
   .r2-acc { border: 1px solid var(--border); border-radius: 9px; margin-bottom: 10px; background: var(--surface); }
   .r2-acc > summary { list-style: none; cursor: pointer; padding: 9px 12px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
@@ -2314,6 +2318,14 @@ function openModal({ title, body, footer, size = '', onMount, keepScroll = false
   if (onMount) onMount($('modalRoot'));
 }
 function closeModal() { $('modalRoot').innerHTML = ''; ui.modal = null; }
+const r2Unsaved = () => (ui.modal && ui.modal.kind === 'report2' && ui.modal.edited ? ui.modal.edited.size : 0);
+// Closing by the user (✕, Close, Esc, clicking outside, switching to legacy) asks first if report edits aren't saved
+function userCloseModal() {
+  const n = r2Unsaved();
+  if (n && !confirm(`Close the report and drop ${n} unsaved change${n > 1 ? 's' : ''}?`)) return false;
+  closeModal(); return true;
+}
+window.addEventListener('beforeunload', e => { if (r2Unsaved()) { e.preventDefault(); e.returnValue = ''; } });
 const modalOpen = () => !!$('modalRoot').innerHTML;
 /** Modals that show live data re-render after any change (and after undo). */
 function rerenderModal() {
@@ -3760,8 +3772,8 @@ function r2Render() {
           </div>
           <div><label class="lbl">Layout</label>${segBtns('opt:layout', [['section', 'By section'], ['account', 'By account'], ['list', 'One list']])}</div>
           <div class="r2-savebar"><span class="muted" id="r2SaveHint"></span>
-            ${c ? `<button class="btn sm" data-action="r2-save" data-to="client" id="r2SaveClient">Save for this client</button>` : ''}
-            <button class="btn sm" data-action="r2-save" data-to="template" id="r2SaveTpl">Save to template</button></div>
+            ${c ? `<button class="btn sm save-solid" data-action="r2-save" data-to="client" id="r2SaveClient" title="Only this company's letters change">Save for this client</button>` : ''}
+            <button class="btn sm ${c ? 'save-outline' : 'save-solid'}" data-action="r2-save" data-to="template" id="r2SaveTpl" title="Changes the letter for every client using this template">Save to template</button></div>
           ${st.single ? '' : `<label class="check r2-chk"><input type="checkbox" id="r2SkipEmpty" ${st.skipEmpty ? 'checked' : ''}> Skip clients with nothing outstanding</label>`}
         </div>
         <details class="r2-acc" open><summary>🏷️ Header</summary><div class="r2-acc-body">
@@ -3831,7 +3843,9 @@ function r2Tags() {
     } else el.innerHTML = dot ? '' : (c ? '<span class="src uses">Uses template</span>' : '');
   });
   const n = st.edited.size;
-  if ($('r2SaveHint')) $('r2SaveHint').textContent = n ? `${n} unsaved change${n > 1 ? 's' : ''}:` : (c && Object.keys(over).length ? `${Object.keys(over).length} customized for this client` : 'No unsaved changes');
+  if ($('r2SaveHint')) $('r2SaveHint').classList.toggle('dirty', !!n);
+  document.querySelector('#modalRoot .modal-header h2')?.classList.toggle('r2-dirty', !!n);
+  if ($('r2SaveHint')) $('r2SaveHint').textContent = n ? `● ${n} unsaved change${n > 1 ? 's' : ''}:` : (c && Object.keys(over).length ? `${Object.keys(over).length} customized for this client` : 'No unsaved changes');
   ['r2SaveClient', 'r2SaveTpl'].forEach(id => { if ($(id)) $(id).disabled = !n; });
 }
 function r2VarsList(filter = '', target = 'r2Vars') {
@@ -4622,7 +4636,7 @@ async function handleAction(action, el, ev) {
     }
     case 'report-all': return (betaOn() ? report2Modal : reportModal)(getClients(false).map(c => c.id));
     case 'report-client': return (betaOn() ? report2Modal : reportModal)([ui.clientId]);
-    case 'r2-legacy': { const ids = ui.modal.clientIds; closeModal(); return reportModal(ids); }
+    case 'r2-legacy': { const ids = ui.modal.clientIds; if (!userCloseModal()) return; return reportModal(ids); }
     case 'r2-save': return r2Save(el.dataset.to);
     case 'r2-make-default': return r2MakeDefault();
     case 'r2-email': return r2EmailModal();
@@ -4634,8 +4648,8 @@ async function handleAction(action, el, ev) {
     case 'rp-reset': { const st = ui.modal; st.cfg = JSON.parse(JSON.stringify(REPORT_TEMPLATES[st.cfg.key])); st.cfg.key = Object.keys(REPORT_TEMPLATES).find(k => REPORT_TEMPLATES[k].label === st.cfg.label); st.cfg.headings = {}; return renderReportModal(); }
     case 'rp-copy': return copyReportText();
     case 'print': return window.print();
-    case 'modal-close': return closeModal();
-    case 'modal-backdrop': if (ev.target === el) closeModal(); return;
+    case 'modal-close': return userCloseModal();
+    case 'modal-backdrop': if (ev.target === el) userCloseModal(); return;
     case 'builder-add': {
       $('builderRows').insertAdjacentHTML('beforeend', builderRowHTML(el.dataset.type, el.dataset.name));
       const rows = $('builderRows').querySelectorAll('.b-name'); rows[rows.length - 1].select(); return;
@@ -4680,7 +4694,7 @@ $('csvFileInput').addEventListener('change', async e => { const f = e.target.fil
 
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
-  if (e.key === 'Escape' && modalOpen()) closeModal();
+  if (e.key === 'Escape' && modalOpen()) userCloseModal();
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && db) { e.preventDefault(); $('clientSearch').focus(); $('clientSearch').select(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing && db) { e.preventDefault(); undo(); }
   if (e.key === 'Enter' && modalOpen() && document.activeElement?.tagName === 'INPUT' && document.activeElement.type !== 'checkbox'
