@@ -1067,7 +1067,20 @@ async function serverInfo() {
   } catch { return null; }
 }
 async function serverLoad() {
-  const r = await withTimeout(fetch('api/db', { cache: 'no-store' }), 20000, 'loading database from server');
+  // Tailscale Funnel sometimes answers 502/503/504 (or drops the connection) while it re-reaches this PC.
+  // Retry a few times; from the third try ask for the uncompressed copy in case compression is the trouble.
+  let r, lastErr;
+  for (let i = 0; i < 5; i++) {
+    if (i) await new Promise(res => setTimeout(res, 1200 * i));
+    try {
+      r = await withTimeout(fetch(i >= 2 ? 'api/db?plain=1' : 'api/db', { cache: 'no-store' }), 20000, 'loading database from server');
+      if (![502, 503, 504].includes(r.status)) { if (i) console.warn(`Database loaded on try ${i + 1}${i >= 2 ? ' (uncompressed)' : ''}`); break; }
+      lastErr = new Error(`Server returned ${r.status}`);
+    } catch (e) { lastErr = e; }
+    console.warn(`Loading the database failed (try ${i + 1}):`, lastErr.message);
+    r = null;
+  }
+  if (!r) throw lastErr;
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`Server returned ${r.status}`);
   serverEtag = normTag(r.headers.get('ETag'));
@@ -2416,6 +2429,9 @@ async function boot() {
   if (info) {
     try { status('Loading database from the server…'); return await serverStart(); }
     catch (e) {
+      // Still failing after the retries: work on this browser's copy and keep reconnecting in the background
+      const cache = await idbGet('dbCache');
+      if (cache) { console.warn('Opening the browser copy because the server load failed:', e); return serverStartFromCache(cache, await idbGet('dbCacheMeta')); }
       $('main').innerHTML = `<div class="welcome"><h2>Couldn't load the database from the server</h2><pre class="muted" style="white-space:pre-wrap">${esc(e.message || String(e))}</pre><p class="muted">Reload the page to try again.</p></div>`;
       return;
     }

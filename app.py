@@ -220,10 +220,12 @@ _gz_cache: dict = {}
 
 def gzipped(data: bytes, tag: str) -> bytes:
     """Database files shrink a lot when compressed; keep the last one so repeated loads don't redo it."""
-    if tag not in _gz_cache:
+    hit = _gz_cache.get(tag)              # safe with several requests at once
+    if hit is None:
+        hit = gzip.compress(data, compresslevel=6)
         _gz_cache.clear()
-        _gz_cache[tag] = gzip.compress(data, compresslevel=6)
-    return _gz_cache[tag]
+        _gz_cache[tag] = hit
+    return hit
 
 
 def gunzip_limited(data: bytes, limit: int) -> bytes | None:
@@ -304,7 +306,7 @@ def application(environ, start_response):
         headers = [("ETag", tag), ("Cache-Control", "no-store"), ("Vary", "Accept-Encoding")]
         if "download" in environ.get("QUERY_STRING", ""):
             headers.append(("Content-Disposition", f'attachment; filename="tracker_{dt.date.today()}.db"'))
-        elif method == "GET" and "gzip" in environ.get("HTTP_ACCEPT_ENCODING", ""):
+        elif method == "GET" and "gzip" in environ.get("HTTP_ACCEPT_ENCODING", "") and "plain" not in environ.get("QUERY_STRING", ""):
             headers.append(("Content-Encoding", "gzip"))   # the browser unpacks this by itself
             data = gzipped(data, tag)
         return respond(start_response, "200 OK", b"" if method == "HEAD" else data, "application/x-sqlite3", headers)
