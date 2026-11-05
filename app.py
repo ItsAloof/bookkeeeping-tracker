@@ -264,6 +264,14 @@ def application(environ, start_response):
         return respond(start_response, "401 Unauthorized", b"Password required.\n",
                        headers=[("WWW-Authenticate", 'Basic realm="Bookkeeping Tracker", charset="UTF-8"')])
 
+    # --- 3dfun: a separate just-for-fun 3D page. To remove it, delete this block and the fun/ folder.
+    if (path.rstrip("/") == "/3dfun" or (path == "/" and environ.get("QUERY_STRING") == "3dfun")) and method in ("GET", "HEAD"):
+        fun = ROOT / "fun" / "3dfun.html"
+        if fun.exists():
+            body = fun.read_bytes()
+            return respond(start_response, "200 OK", b"" if method == "HEAD" else body, MIME[".html"], [("Cache-Control", "no-cache")])
+    # --- end 3dfun
+
     # --- page
     if path in ("/", "/index.html") and method in ("GET", "HEAD"):
         body = INDEX_HTML.read_bytes()

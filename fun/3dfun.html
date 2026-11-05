@@ -1,0 +1,377 @@
+<!doctype html>
+<!--
+  3D Fun — a just-for-fun three.js playground, separate from the tracker.
+  Served by app.py at /3dfun (or /?3dfun), behind the same password.
+  To remove it: delete the fun/ folder and the "3dfun" block in app.py.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Fun</title>
+<style>
+  :root { color-scheme: dark; --glass: rgba(255,255,255,.08); --edge: rgba(255,255,255,.18); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #eef; }
+  canvas#c { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  .hud { position: fixed; top: 14px; left: 16px; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.85); }
+  .hud h1 { margin: 0; font-size: 20px; letter-spacing: .04em; font-weight: 800;
+    background: linear-gradient(90deg, #ff3d6e, #ffd23d, #3dff9a, #3dc4ff, #b33dff, #ff3d6e); background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; animation: hue 6s linear infinite; }
+  .hud p { margin: 4px 0 0; color: #dde; font-size: 12px; }
+  .hud a { pointer-events: auto; color: #9cf; text-decoration: none; font-size: 12px; }
+  @keyframes hue { to { background-position: 300% 0; } }
+  .chips { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    padding: 8px; border-radius: 18px; background: rgba(12,14,24,.38); border: 1px solid var(--edge);
+    backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); max-width: calc(100vw - 24px); }
+  .chips button { font: inherit; font-size: 13px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); cursor: pointer; padding: 7px 13px; border-radius: 12px;
+    border: 1px solid var(--edge); background: rgba(255,255,255,.06); transition: transform .15s, background .15s; }
+  .chips button:hover { background: rgba(255,255,255,.16); transform: translateY(-1px); }
+  .chips button.on { background: linear-gradient(135deg, rgba(255,61,110,.45), rgba(61,196,255,.45)); border-color: rgba(255,255,255,.4); }
+  .toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border-radius: 12px; background: var(--glass);
+    border: 1px solid var(--edge); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .err { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #ccd; }
+  .lil-gui.root { --background-color: rgba(14,16,26,.72); --widget-color: rgba(255,255,255,.1); --hover-color: rgba(255,255,255,.18);
+    --focus-color: rgba(255,255,255,.24); --title-background-color: rgba(30,32,48,.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-radius: 10px; overflow: hidden; }
+  @media (max-width: 700px) { .hud p { display: none; } .chips button { padding: 6px 10px; font-size: 12px; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <h1>3D FUN</h1>
+  <p>Drag to spin · scroll or pinch to zoom · click the shape to make it ripple</p>
+  <a href="/">← back to the tracker</a>
+</div>
+<div class="chips" id="chips"></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import GUI from 'three/addons/libs/lil-gui.module.min.js';
+
+/* ---------------- settings (everything the panel and presets change) ---------------- */
+const S = {
+  shape: 'Torus knot', material: 'Liquid glass', color: '#ffffff', wireframe: false,
+  wobble: 0.12, wobbleSpeed: 1, autoRotate: true, spin: 0.6,
+  lightMode: 'Rainbow cycle', lightSpeed: 1, lightIntensity: 1, glowColor: '#ff3d6e',
+  bloom: 0.6, bloomRadius: 0.45, bloomThreshold: 0.55,
+  background: 'Void', orbs: true, stars: true, grid: true, exposure: 1.1,
+};
+const DEFAULTS = structuredClone(S);
+
+/* ---------------- renderer, scene, camera ---------------- */
+const canvas = document.getElementById('c');
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
+catch (e) { document.body.innerHTML = '<div class="err">Your browser or graphics driver couldn\'t start WebGL, so the 3D scene can\'t run here.</div>'; throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+camera.position.set(0, 0.6, 5.2);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.minDistance = 2.2; controls.maxDistance = 14; controls.enablePan = false;
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = envTex;
+
+/* backgrounds */
+function gradientTexture(stops) {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  const g = c.getContext('2d'), lg = g.createLinearGradient(0, 0, 0, 256);
+  stops.forEach(([o, col]) => lg.addColorStop(o, col)); g.fillStyle = lg; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const BACKGROUNDS = {
+  'Void': () => new THREE.Color('#05060a'),
+  'Studio': () => envTex,
+  'Sunset': () => gradientTexture([[0, '#1a0633'], [0.55, '#7a1f5c'], [1, '#ff8a3d']]),
+  'Deep sea': () => gradientTexture([[0, '#00111f'], [0.6, '#003a52'], [1, '#00a0a8']]),
+  'Synthwave': () => gradientTexture([[0, '#0b0221'], [0.5, '#2d0a4e'], [0.8, '#c2185b'], [1, '#ffb300']]),
+};
+
+/* ---------------- the model ---------------- */
+const q = n => Math.max(3, Math.round(n * (S.wireframe ? 0.16 : 1)));   // fewer lines in wireframe
+const SHAPES = {
+  'Torus knot': () => new THREE.TorusKnotGeometry(0.9, 0.32, q(320), q(48)),
+  'Blob': () => new THREE.IcosahedronGeometry(1.25, q(30)),
+  'Crystal': () => new THREE.IcosahedronGeometry(1.3, 0),
+  'Rounded cube': () => new RoundedBoxGeometry(1.8, 1.8, 1.8, q(10), 0.32),
+  'Donut': () => new THREE.TorusGeometry(1.0, 0.42, q(64), q(160)),
+  'Capsule': () => new THREE.CapsuleGeometry(0.7, 1.1, q(24), q(64)),
+  'Gem': () => new THREE.OctahedronGeometry(1.4, 0),
+};
+const material = new THREE.MeshPhysicalMaterial();
+const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
+scene.add(mesh);
+let basePos = null, baseNormal = null, flatShaded = false;
+
+function setShape(name) {
+  let g = SHAPES[name]();
+  flatShaded = name === 'Crystal' || name === 'Gem';
+  if (!flatShaded) g = mergeSeams(g);
+  mesh.geometry.dispose();
+  mesh.geometry = g;
+  basePos = g.attributes.position.array.slice();
+  g.computeVertexNormals();
+  baseNormal = g.attributes.normal.array.slice();
+  material.flatShading = flatShaded; material.needsUpdate = true;
+}
+// Shared vertices so wobbling doesn't tear the surface open along UV seams
+function mergeSeams(g) {
+  const pos = g.attributes.position, map = new Map(), idx = [], verts = [];
+  const key = i => `${pos.getX(i).toFixed(4)},${pos.getY(i).toFixed(4)},${pos.getZ(i).toFixed(4)}`;
+  const src = g.index ? g.index.array : [...Array(pos.count).keys()];
+  for (const i of src) {
+    const k = key(i);
+    if (!map.has(k)) { map.set(k, verts.length / 3); verts.push(pos.getX(i), pos.getY(i), pos.getZ(i)); }
+    idx.push(map.get(k));
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  out.setIndex(idx);
+  return out;
+}
+
+/* materials: each preset starts from the same neutral base */
+const MATERIALS = {
+  'Liquid glass': m => Object.assign(m, { transmission: 1, roughness: 0.03, thickness: 1.6, ior: 1.45, dispersion: 4, iridescence: 0.35, iridescenceIOR: 1.4, clearcoat: 1, attenuationDistance: 2.5 }),
+  'Chrome': m => Object.assign(m, { metalness: 1, roughness: 0.06 }),
+  'Neon': m => { Object.assign(m, { roughness: 0.4, emissiveIntensity: 1 }); m.color.set('#0a0a0a'); },
+  'Hologram': m => Object.assign(m, { metalness: 0.7, roughness: 0.12, iridescence: 1, iridescenceIOR: 1.9, iridescenceThicknessRange: [120, 900], sheen: 1, sheenRoughness: 0.3 }),
+  'Candy': m => Object.assign(m, { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.05 }),
+  'Gold': m => { Object.assign(m, { metalness: 1, roughness: 0.18 }); m.color.set('#ffc84a'); },
+  'Clay': m => Object.assign(m, { roughness: 1 }),
+};
+function setMaterial(name) {
+  const m = material;
+  Object.assign(m, { metalness: 0, roughness: 0.5, transmission: 0, thickness: 0, ior: 1.5, dispersion: 0, iridescence: 0, clearcoat: 0, clearcoatRoughness: 0,
+    sheen: 0, emissiveIntensity: 0, attenuationDistance: Infinity });
+  m.color.set(S.color); m.emissive.set('#000000'); m.attenuationColor.set('#ffffff');
+  MATERIALS[name](m);
+  if (name === 'Liquid glass') m.attenuationColor.set(S.color);
+  m.wireframe = S.wireframe;
+  m.needsUpdate = true;
+}
+
+/* ---------------- RGB lights, orbs, stars, grid ---------------- */
+const lights = ['#ff2d55', '#2dff7a', '#2d8bff'].map((c, i) => {
+  const l = new THREE.PointLight(c, 12, 20, 1.6); scene.add(l);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 24, 16), new THREE.MeshBasicMaterial({ color: c }));
+  l.add(orb); l.userData = { phase: i * Math.PI * 2 / 3, orb };
+  return l;
+});
+scene.add(new THREE.AmbientLight('#ffffff', 0.15));
+
+const orbs = new THREE.Group(); scene.add(orbs);
+for (let i = 0; i < 14; i++) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.07 + Math.random() * 0.1, 24, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(i / 14, 1, 0.6) }));
+  m.userData = { r: 2.8 + Math.random() * 1.8, a: Math.random() * Math.PI * 2, y: (Math.random() - 0.5) * 3, s: 0.15 + Math.random() * 0.35, hue: i / 14 };
+  orbs.add(m);
+}
+const starGeo = new THREE.BufferGeometry(), N = 1600, sp = new Float32Array(N * 3), sc = new Float32Array(N * 3);
+for (let i = 0; i < N; i++) {
+  const v = new THREE.Vector3().randomDirection().multiplyScalar(18 + Math.random() * 40);
+  sp.set([v.x, v.y, v.z], i * 3); new THREE.Color().setHSL(Math.random(), 0.8, 0.75).toArray(sc, i * 3);
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(sp, 3)); starGeo.setAttribute('color', new THREE.BufferAttribute(sc, 3));
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.12, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false }));
+scene.add(stars);
+const grid = new THREE.GridHelper(30, 40, '#ff3d6e', '#3dc4ff'); grid.position.y = -2.1;
+grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+
+/* ---------------- post-processing glow ---------------- */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), S.bloom, S.bloomRadius, S.bloomThreshold);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); composer.setSize(w, h); bloom.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+/* ---------------- interaction: click to ripple, hover glow ---------------- */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(), ripples = [];
+let hover = false, kick = 0, downAt = null;
+function pick(e) {
+  const r = canvas.getBoundingClientRect();
+  ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  return ray.intersectObject(mesh)[0];
+}
+canvas.addEventListener('pointermove', e => { hover = !!pick(e); canvas.style.cursor = hover ? 'pointer' : 'grab'; });
+canvas.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;   // it was a drag
+  const hit = pick(e);
+  if (!hit) return;
+  ripples.push({ p: mesh.worldToLocal(hit.point.clone()), t: 0 });
+  if (ripples.length > 4) ripples.shift();
+  kick = 1;
+});
+
+/* ---------------- animation ---------------- */
+const clock = new THREE.Clock(), tmp = new THREE.Vector3(), hsl = { h: 0, s: 0, l: 0 };
+function deform(t, dt) {
+  const g = mesh.geometry, pos = g.attributes.position, a = pos.array;
+  const amp = S.wobble, active = amp > 0.001 || ripples.length;
+  if (!active) { if (g.userData.dirty) { a.set(basePos); g.computeVertexNormals(); pos.needsUpdate = true; g.userData.dirty = false; } return; }
+  ripples.forEach(r => { r.t += dt; }); while (ripples.length && ripples[0].t > 3) ripples.shift();
+  const w = t * S.wobbleSpeed;
+  for (let i = 0; i < a.length; i += 3) {
+    const x = basePos[i], y = basePos[i + 1], z = basePos[i + 2];
+    let d = amp * (Math.sin(x * 2.1 + w * 1.7) * Math.sin(y * 2.4 + w * 1.3) * Math.sin(z * 1.9 + w * 1.1)
+      + 0.5 * Math.sin(x * 4.3 - w * 2.2 + y * 3.1) * Math.cos(z * 3.7 + w * 1.6));
+    for (const r of ripples) {
+      const dist = Math.hypot(x - r.p.x, y - r.p.y, z - r.p.z);
+      d += 0.16 * Math.sin(dist * 11 - r.t * 12) * Math.exp(-r.t * 1.6) * Math.exp(-dist * 1.2) * (dist < r.t * 1.6 ? 1 : 0);
+    }
+    a[i] = x + baseNormal[i] * d; a[i + 1] = y + baseNormal[i + 1] * d; a[i + 2] = z + baseNormal[i + 2] * d;
+  }
+  pos.needsUpdate = true; g.computeVertexNormals(); g.userData.dirty = true;
+}
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  deform(t, dt);
+  // spin, with a little boost after a click
+  kick *= 0.95;
+  if (S.autoRotate) { mesh.rotation.y += dt * S.spin * (1 + kick * 6); mesh.rotation.x += dt * S.spin * 0.25; }
+  const s = 1 + (hover ? 0.04 : 0) + kick * 0.08; mesh.scale.lerp(tmp.set(s, s, s), 0.15);
+
+  // RGB lights
+  const lt = t * S.lightSpeed;
+  lights.forEach((l, i) => {
+    const ph = l.userData.phase + lt * 0.8;
+    l.position.set(Math.cos(ph) * 3, Math.sin(ph * 1.3) * 1.6, Math.sin(ph) * 3);
+    if (S.lightMode === 'Rainbow cycle') l.color.setHSL((lt * 0.08 + i / 3) % 1, 1, 0.55);
+    else if (S.lightMode === 'Gamer strobe') l.color.setHSL(Math.floor(lt * 4 + i) % 6 / 6, 1, 0.55);
+    else if (S.lightMode === 'Single color') l.color.set(S.glowColor);
+    else l.color.set(['#ff2d55', '#2dff7a', '#2d8bff'][i]);
+    const pulse = S.lightMode === 'Gamer strobe' ? 0.6 + 0.4 * Math.abs(Math.sin(lt * 6 + i)) : 1;
+    l.intensity = 12 * S.lightIntensity * pulse;
+    l.userData.orb.material.color.copy(l.color);
+  });
+  // neon glows in the light colour
+  if (S.material === 'Neon') { lights[0].color.getHSL(hsl); material.emissive.setHSL(hsl.h, 1, 0.5); }
+
+  orbs.visible = S.orbs;
+  if (S.orbs) orbs.children.forEach(o => {
+    const u = o.userData; u.a += dt * u.s * S.lightSpeed;
+    o.position.set(Math.cos(u.a) * u.r, u.y + Math.sin(t * u.s * 2 + u.r) * 0.4, Math.sin(u.a) * u.r);
+    if (S.lightMode !== 'Classic RGB') o.material.color.setHSL((u.hue + lt * 0.05) % 1, 1, 0.6);
+  });
+  stars.visible = S.stars; stars.rotation.y = t * 0.01;
+  grid.visible = S.grid;
+  if (S.grid) grid.material.color && grid.material.color.setHSL((lt * 0.05) % 1, 1, 0.5);
+
+  bloom.strength = S.bloom; bloom.radius = S.bloomRadius; bloom.threshold = S.bloomThreshold;
+  renderer.toneMappingExposure = S.exposure;
+  controls.update();
+  composer.render();
+  requestAnimationFrame(animate);
+}
+
+/* ---------------- presets ---------------- */
+const PRESETS = {
+  'Liquid glass': { shape: 'Blob', material: 'Liquid glass', color: '#bfe9ff', wobble: 0.14, wobbleSpeed: 0.8, lightMode: 'Rainbow cycle', bloom: 0.4, background: 'Synthwave', orbs: true, stars: true, grid: false },
+  'RGB gamer': { shape: 'Rounded cube', material: 'Chrome', color: '#d8d8e0', wobble: 0, lightMode: 'Gamer strobe', lightSpeed: 1.6, lightIntensity: 2, bloom: 0.8, bloomThreshold: 0.6, exposure: 0.8, background: 'Void', orbs: true, stars: true, grid: true },
+  'Chrome': { shape: 'Torus knot', material: 'Chrome', color: '#ffffff', wobble: 0.05, lightMode: 'Classic RGB', bloom: 0.3, bloomThreshold: 0.8, exposure: 0.9, background: 'Studio', orbs: false, stars: false, grid: false },
+  'Neon wire': { shape: 'Torus knot', material: 'Neon', wireframe: true, wobble: 0.1, lightMode: 'Rainbow cycle', bloom: 0.8, bloomRadius: 0.3, bloomThreshold: 0.2, background: 'Void', orbs: false, stars: true, grid: true },
+  'Hologram': { shape: 'Donut', material: 'Hologram', color: '#c9b8ff', wobble: 0.06, lightMode: 'Rainbow cycle', bloom: 0.5, background: 'Deep sea', orbs: true, stars: true, grid: false },
+  'Molten gold': { shape: 'Blob', material: 'Gold', wobble: 0.22, wobbleSpeed: 1.4, lightMode: 'Single color', glowColor: '#ff6a00', lightIntensity: 1.6, bloom: 0.5, exposure: 0.85, background: 'Sunset', orbs: false, stars: true, grid: false },
+};
+function applyAll() {
+  setShape(S.shape); setMaterial(S.material);
+  scene.background = BACKGROUNDS[S.background]();
+  scene.backgroundBlurriness = S.background === 'Studio' ? 0.5 : 0;
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+function usePreset(name) {
+  Object.assign(S, structuredClone(DEFAULTS), PRESETS[name]);
+  if (!('color' in PRESETS[name])) S.color = name === 'Molten gold' ? '#ffc84a' : DEFAULTS.color;
+  applyAll(); markChip(name); toast(name);
+}
+function surprise() {
+  const pickOne = o => { const k = Object.keys(o); return k[Math.floor(Math.random() * k.length)]; };
+  Object.assign(S, {
+    shape: pickOne(SHAPES), material: pickOne(MATERIALS), color: '#' + new THREE.Color().setHSL(Math.random(), 0.7, 0.7).getHexString(),
+    wireframe: Math.random() < 0.15, wobble: Math.random() < 0.3 ? 0 : Math.random() * 0.25, wobbleSpeed: 0.5 + Math.random() * 1.5,
+    lightMode: pickOne({ 'Rainbow cycle': 1, 'Gamer strobe': 1, 'Classic RGB': 1, 'Single color': 1 }), glowColor: '#' + new THREE.Color().setHSL(Math.random(), 1, 0.5).getHexString(),
+    bloom: 0.3 + Math.random() * 1.1, background: pickOne(BACKGROUNDS), orbs: Math.random() < 0.6, stars: Math.random() < 0.8, grid: Math.random() < 0.4,
+  });
+  applyAll(); markChip(null); toast('Surprise!');
+}
+
+/* ---------------- control panel ---------------- */
+const gui = new GUI({ title: 'Tweak it' });
+if (innerWidth < 700) gui.close();
+const fm = gui.addFolder('Model');
+fm.add(S, 'shape', Object.keys(SHAPES)).name('Shape').onChange(setShape);
+fm.add(S, 'material', Object.keys(MATERIALS)).name('Material').onChange(setMaterial);
+fm.addColor(S, 'color').name('Color').onChange(() => setMaterial(S.material));
+fm.add(S, 'wireframe').name('Wireframe').onChange(v => { material.wireframe = v; setShape(S.shape); });
+const fl = gui.addFolder('Liquid & motion');
+fl.add(S, 'wobble', 0, 0.35, 0.01).name('Wobble');
+fl.add(S, 'wobbleSpeed', 0, 4, 0.05).name('Wobble speed');
+fl.add(S, 'autoRotate').name('Auto-rotate');
+fl.add(S, 'spin', 0, 3, 0.05).name('Spin speed');
+const fr = gui.addFolder('RGB lighting');
+fr.add(S, 'lightMode', ['Rainbow cycle', 'Gamer strobe', 'Classic RGB', 'Single color']).name('Mode');
+fr.addColor(S, 'glowColor').name('Single color');
+fr.add(S, 'lightSpeed', 0, 4, 0.05).name('Speed');
+fr.add(S, 'lightIntensity', 0, 3, 0.05).name('Brightness');
+const fg = gui.addFolder('Glow');
+fg.add(S, 'bloom', 0, 3, 0.05).name('Glow strength');
+fg.add(S, 'bloomRadius', 0, 1.5, 0.05).name('Glow size');
+fg.add(S, 'bloomThreshold', 0, 1, 0.01).name('Glow threshold');
+fg.add(S, 'exposure', 0.3, 2.5, 0.05).name('Exposure');
+const fs = gui.addFolder('Scene');
+fs.add(S, 'background', Object.keys(BACKGROUNDS)).name('Background').onChange(() => applyAll());
+fs.add(S, 'orbs').name('Floating orbs');
+fs.add(S, 'stars').name('Stars');
+fs.add(S, 'grid').name('Neon grid');
+const actions = {
+  'Surprise me 🎲': surprise,
+  'Screenshot 📸': () => { composer.render(); canvas.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = '3dfun.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }); },
+  'Reset view': () => { controls.reset(); camera.position.set(0, 0.6, 5.2); mesh.rotation.set(0, 0, 0); },
+};
+Object.keys(actions).forEach(k => gui.add(actions, k));
+[fl, fr, fg, fs].forEach(f => f.close());
+
+/* ---------------- preset chips ---------------- */
+const chips = document.getElementById('chips');
+chips.innerHTML = [...Object.keys(PRESETS), 'Surprise me 🎲'].map(n => `<button data-p="${n}">${n}</button>`).join('');
+chips.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; b.dataset.p in PRESETS ? usePreset(b.dataset.p) : surprise(); });
+function markChip(name) { chips.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.p === name)); }
+let toastTimer;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1400); }
+
+usePreset('Liquid glass');
+animate();
+window.__fun = { S, usePreset, surprise };   // handy for poking at it from the console
+</script>
+</body>
+</html>

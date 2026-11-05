@@ -212,3 +212,9 @@ Dockerfile        Container image for Fly.io or any Docker host
 requirements.txt  Empty on purpose (no dependencies)
 data/             Created at runtime: tracker.db, backups/, vendor/ (git-ignored)
 ```
+
+## Extra: 3D Fun page
+
+`/3dfun` (or `/?3dfun`) opens a just-for-fun three.js playground: liquid glass, chrome, neon, RGB lighting and glow effects.
+It's behind the same password, loads three.js from the jsDelivr CDN, and doesn't touch the tracker or its data.
+To remove it, delete the `fun/` folder and the block marked `3dfun` in `app.py` (and this section).
