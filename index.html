@@ -450,10 +450,10 @@
   .r2-list { list-style: none; margin: 4px 0 6px; padding: 0; }
   ol.r2-list { counter-reset: r2n; }
   .r2-list li { position: relative; padding-left: 24px; margin: 4px 0; }
-  .r2-box li::before { content: "☐"; position: absolute; left: 0; font-size: 15px; line-height: 1.3; }
-  .r2-dot li::before { content: "•"; position: absolute; left: 7px; }
+  .r2-b-box li::before { content: "☐"; position: absolute; left: 0; font-size: 15px; line-height: 1.3; }
+  .r2-b-dot li::before { content: "•"; position: absolute; left: 7px; }
   ol.r2-list li::before { counter-increment: r2n; content: counter(r2n) "."; position: absolute; left: 0; }
-  .r2-none li { padding-left: 0; }
+  .r2-b-none li { padding-left: 0; }
   .r2-click { cursor: pointer; border-radius: 3px; }
   .r2-click:hover { outline: 2px dashed var(--primary); outline-offset: 2px; }
   .r2-list li:has(.r2-x) { padding-right: 34px; }
@@ -3559,7 +3559,7 @@ function r2Items(cid, year, through) {
       if (rec.length) {
         const ms = rec.map(x => x.m);
         add('received', `${r.acc.id}:${doc}`, { ...accVars(r.acc), document: docWord(doc, r.grp, ms.length), months: fmtMonthsLong(ms, year),
-          monthsShort: ms.map(m => MONTHS[m]).join(', '), status: [...new Set(rec.map(x => statusLabel(x.status).toLowerCase()))].join(', '), count: ms.length });
+          monthsShort: ms.map(m => MONTHS[m]).join(', '), status: [...new Set(rec.map(x => statusLabel(x.status).toLowerCase().replace(/\s*\(([^)]*)\)/g, ', $1')))].join('; '), count: ms.length });
       }
     });
     if (r.ready.length) add('ready', r.acc.id, { ...accVars(r.acc), months: fmtMonthsLong(r.ready, year), monthsShort: r.ready.map(m => MONTHS[m]).join(', '), count: r.ready.length });
@@ -3635,7 +3635,7 @@ function r2PageHTML(page, values, { editable = true } = {}) {
   if (String(values.title || '').trim()) h += `<h1 class="r2-click r2-title"${J('title')}>${F(values.title)}</h1>`;
   h += paras('intro');
   const li = (sec, it) => `<li class="r2-click"${J(`item:${sec}:${it.kind}`)}>${F(values[`item:${sec}:${it.kind}`], it.vars)}${editable ? `<button class="r2-x" data-r2x="${esc(page.cid)}|${esc(it.id)}" title="Leave this out of this letter (e.g. it just came in)">✕</button>` : ''}</li>`;
-  const list = (bullet, lis) => (lis.length ? `<${bullet === 'num' ? 'ol' : 'ul'} class="r2-list r2-${bullet}">${lis.join('')}</${bullet === 'num' ? 'ol' : 'ul'}>` : '');
+  const list = (bullet, lis) => (lis.length ? `<${bullet === 'num' ? 'ol' : 'ul'} class="r2-list r2-b-${bullet}">${lis.join('')}</${bullet === 'num' ? 'ol' : 'ul'}>` : '');
   const nonEmpty = plan.filter(s => s.items.length);
   if (values['opt:layout'] === 'section') {
     nonEmpty.forEach(s => {
